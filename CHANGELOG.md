@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-10-07
+
+Packaging-only release: the plugin code is identical to 0.1.0. It exists to
+publish through the new CI path and prove it end to end.
+
+### Changed
+
+- npm releases are authenticated with OIDC trusted publishing
+  (`permissions: id-token: write`) instead of a long-lived `NPM_TOKEN` secret.
+  Provenance is attached automatically and the workflow no longer reads any
+  credential from the environment.
+- `actions/setup-node` no longer receives `registry-url`, so no `.npmrc`
+  containing a token placeholder is generated.
+
 ## [0.1.0] - 2026-10-07
 
 First public release.
@@ -34,4 +48,5 @@ First public release.
   package name. `scripts/build-client.mjs` derives it from `package.json`, and
   `scripts/verify-bundle.mjs` fails the build if it ever drifts.
 
+[0.1.1]: https://github.com/yupaoa/dsh-persona-switcher/releases/tag/v0.1.1
 [0.1.0]: https://github.com/yupaoa/dsh-persona-switcher/releases/tag/v0.1.0
