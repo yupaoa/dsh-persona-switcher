@@ -1,6 +1,6 @@
 {
   "name": "dsh-persona-switcher",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Switch the model's persona and speaking style mid-session without touching its tools or skills. 角色切换：只切换模型的人设与语言风格，不动工具与技能。",
   "keywords": [
     "deepseek-harness",
@@ -75,7 +75,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/cordis": "^4.0.4",
     "@deepseek-ai/dsh-tools": "^0.2.0-rc.1",
     "@deepseek-ai/schemastery": "^3.18.4"
   },
