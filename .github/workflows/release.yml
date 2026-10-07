@@ -18,9 +18,9 @@ jobs:
     env:
       NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
           registry-url: https://registry.npmjs.org
@@ -36,6 +36,7 @@ jobs:
         run: npm test
 
       - name: Tag must match package.json version
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#v}"
@@ -47,9 +48,17 @@ jobs:
 
       # `prepublishOnly` rebuilds the client bundle and re-runs the invariant
       # check, so the tarball can never contain a stale lib/client.js.
-      # Skipped rather than failed while the NPM_TOKEN secret is not configured
-      # yet, so pushing a tag is still a useful green signal for a repo that has
-      # no npm side set up. It starts publishing as soon as the secret exists.
+      #
+      # The emptiness guard lives in the shell on purpose. A step-level `if:`
+      # cannot see a job-level `env:` value, so `if: env.NODE_AUTH_TOKEN != ''`
+      # silently evaluated as true and published with no token at all, failing
+      # the whole v0.1.0 run with an unauthenticated 404 from the registry.
       - name: Publish
-        if: env.NODE_AUTH_TOKEN != ''
-        run: npm publish --provenance --access public
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::notice title=npm publish skipped::NPM_TOKEN is not configured for this repository."
+            exit 0
+          fi
+          npm publish --provenance --access public
