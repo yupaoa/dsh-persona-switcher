@@ -20,6 +20,13 @@
  *   4. A switch must be durable. The binding lives in one agent scope and dies
  *      with it, so the choice is mirrored into `lib/session-state.js`'s file and
  *      re-applied on the session's pre-step. Both halves must stay wired.
+ *   5. The plugin inventory must be able to read this plugin's display text. The
+ *      row renders from `locale/en.json` and `locale/zh.json`, which the host
+ *      resolves through the package's `exports` map without activating the
+ *      plugin, and falls back to `package.json`'s `name`/`description`
+ *      **silently** when that lookup fails. Exporting `./locale/*.json` and
+ *      shipping `locale/` is what keeps the row reading `人设切换` instead of
+ *      the package name.
  *
  * It also keeps the publish payload honest: `lib/` must be listed file by file
  * so stale backups (for example `lib/client.js.bak-*`) can never be published.
@@ -189,6 +196,48 @@ if (problems.length === 0 && host !== null && memory !== null) {
   notes.push('a role switch is mirrored to a state file and re-applied at agent creation and on every pre-step')
 }
 
+// ---------------------------------------------------------------- rule 5
+// The Settings plugin inventory, the Plugin Manager card and the bundle details
+// render this plugin's display text without activating it: the host resolves
+// `<name>/locale/en.json` through the package's `exports` map and reads `meta`
+// from `en.json`, then from the file next to it for every other language. A
+// missing subpath is reported nowhere — the row falls back to `package.json`,
+// which is exactly how this plugin lost its title once.
+const exportMap = pkg.exports ?? {}
+for (const subpath of ['./locale/*.json', './package.json']) {
+  if (exportMap[subpath] !== subpath) {
+    problems.push(
+      `package.json "exports" must map ${JSON.stringify(subpath)} to itself (hard rule 5): the ` +
+        'plugin inventory resolves the locale files through the exports map and, with no ' +
+        'diagnostic at all, falls back to the package name and description when it cannot'
+    )
+  }
+}
+const locales = {}
+for (const language of ['en', 'zh']) {
+  const source = await read(`locale/${language}.json`)
+  if (source === null) continue
+  try {
+    locales[language] = JSON.parse(source)
+  } catch (error) {
+    problems.push(`locale/${language}.json is not valid JSON: ${error.message}`)
+  }
+}
+for (const [language, parsed] of Object.entries(locales)) {
+  for (const field of ['title', 'description']) {
+    const value = parsed?.meta?.[field]
+    if (typeof value !== 'string' || value.trim() === '') {
+      problems.push(
+        `locale/${language}.json has no usable meta.${field} (hard rule 5): the inventory would ` +
+          'fall back to package.json for that field'
+      )
+    }
+  }
+}
+if (Object.keys(locales).length === 2 && problems.length === 0) {
+  notes.push(`the plugin inventory can read this plugin's own title (${locales.zh.meta.title})`)
+}
+
 // --------------------------------------------------------- publish payload
 if (pkg.dsh?.client?.platform !== 'web') {
   problems.push(`package.json dsh.client.platform is ${JSON.stringify(pkg.dsh?.client?.platform)}, expected "web"`)
@@ -202,6 +251,12 @@ for (const entry of [
   'cordis.patch.yml'
 ]) {
   if (!files.includes(entry)) problems.push(`package.json "files" must list ${entry}`)
+}
+if (!files.some((entry) => entry === 'locale' || entry === 'locale/' || entry.startsWith('locale/'))) {
+  problems.push(
+    'package.json "files" must ship the locale/ directory (hard rule 5): without it the ' +
+      'published tarball has no display text and the row shows the package name'
+  )
 }
 if (files.includes('lib')) {
   problems.push(

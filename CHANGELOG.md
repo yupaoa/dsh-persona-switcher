@@ -4,7 +4,37 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.5] - 2026-10-08
+## [0.1.6] - 2026-10-07
+
+### Fixed
+
+- **The plugin inventory now shows this plugin's own title and description.** The
+  Settings plugin inventory, the Plugin Manager card and the bundle details read
+  that text from `locale/en.json` and `locale/zh.json` without activating the
+  plugin, resolving every file through the package's `exports` map
+  (`<name>/locale/en.json`). `./locale/*.json` was not an exported subpath, so
+  that lookup failed and the row silently fell back to `package.json` `name` and
+  `description` — it read `dsh-persona-switcher` with the bilingual npm
+  description instead of `人设切换` / `Persona Switcher`. The subpath is exported
+  now, so the row reads `人设切换` in Chinese and `Persona Switcher` in English.
+  Nothing in the runtime code changed: this release is the manifest plus locale
+  data.
+
+### Added
+
+- `scripts/verify-bundle.mjs` hard rule 5: `package.json` must export
+  `./locale/*.json` and `./package.json`, both locale files must carry a
+  non-empty `meta.title` and `meta.description`, and `files` must ship `locale/`.
+  The fallback to `package.json` happens without any diagnostic, so this
+  invariant is what turns the same regression into a red build instead of a row
+  that quietly shows the package name.
+
+### Changed
+
+- The 0.1.3, 0.1.4 and 0.1.5 headings are dated `2026-10-07`, the day those
+  versions were released; they had been dated one day ahead.
+
+## [0.1.5] - 2026-10-07
 
 ### Fixed
 
@@ -34,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/verify-bundle.mjs` hard rule 4 now also fails when the creation seam
   or the live-agent sweep is removed.
 
-## [0.1.4] - 2026-10-08
+## [0.1.4] - 2026-10-07
 
 ### Fixed
 
@@ -75,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports that choice plus the state file. A switch whose choice could not be
   stored says so in its own output instead of being passed off as durable.
 
-## [0.1.3] - 2026-10-08
+## [0.1.3] - 2026-10-07
 
 ### Fixed
 
