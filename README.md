@@ -44,6 +44,77 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 需要「一条命令同时切人设 + 能力 + 技能」的完整版能力时，请改用 `dsh-role-switcher`；
 本插件是它的最小化派生：两者可以并存，只是「一条命令同时换能力」的能力只在前者身上。
 
+## 它动你磁盘上的哪些文件（权能边界）
+
+一句话：**全插件只写下面 4 个位置，不联网、不上传角色内容、不读任何凭据文件**；
+除这 4 处以外的一切都只发生在内存里（一条 prompt section + 一条会话消息）。
+
+### 会写入的 4 个位置
+
+| 位置 | 何时写 | 写什么 | 由谁触发 |
+| --- | --- | --- | --- |
+| `$DSH_HOME/persona-switcher/sessions.json` | 每次切换 / `/role none` | 每会话一条「角色 id + 时间戳」。原子写（临时文件 + rename），**文件损坏时改名成 `sessions.json.corrupt` 而不是删除**；超过保留窗口的旧记录在下次写入时清理 | `/role`、设置页点选 |
+| `<rolesDir>/<id>/ROLE.md` | 你在设置页**新建/编辑**角色 | frontmatter（`id`/`name`/`description`）+ 人设正文；顺手清掉同名的旧扁平文件 `<rolesDir>/<id>.md` | 只有你点保存 |
+| `<rolesDir>/<id>/`（含目录本身） | 你在设置页**删除**角色 | `ROLE.md` → 该角色目录 → 旧扁平文件。**真删除，不进回收站**；若删掉的正是当前默认角色，还会清掉设置里那条 `defaultRole` | 只有你点删除 |
+| profile 的 `cordis.patch.yml` | `/role default <id>`、设置页改默认、或删除默认角色 | **间接写入**：插件只调宿主官方的 settings 表层（`settings.update` / `settings.mutate`），真正落盘的是宿主的 ConfigEditor | 只有你显式设/清默认 |
+
+### 只读的东西
+
+- `<rolesDir>`：启动时扫描 + 每次 CRUD 后刷新（只读 `ROLE.md` 的 frontmatter 与正文）。
+- `$DSH_HOME` 环境变量：用来定位上面两个路径。
+- 本会话自身的 surface / 事件流：`role_probe` 用它报告系统节点、上一次请求头里发给模型的工具清单。
+- 宿主 `agentPresets.composedPreset()`：**只读**，仅用于报告「切换没动过会话组合」这一证据。
+
+### 只在内存里、不落盘的东西
+
+- 一条角色库 prompt section（`persona-switcher.catalogue`）+ 每会话一条 agent 作用域的人设 section；
+- 一条 `/role` 斜杠命令；`exposeTool: true` 时一个 `role_probe` 工具；
+- 浏览器侧：一个设置页 section（id 固定 `persona-switcher`，左栏第 4 项）+ 若干 `ps-` 前缀样式（锚定在 `.dsh-panel.ps-page`，不污染宿主 UI）；
+- `announceRoleChange: true`（默认）时，切换后往该会话注入一条 `<system-reminder>Role change: …` 用户消息——它是**真实会话消息**，所以会出现在该会话的记录里，这是刻意的（见「配置项」）。
+
+### 网络
+
+- **没有出站请求**：不联网、不上传、不回传角色内容，也不读 `~/.dsh/.credentials.yaml` 之类的凭据文件。
+- 唯一的网络面是**入站**：在宿主**已经存在**的本机 webServer 上挂一个前缀路由（`routePrefix`，默认 `/persona-switcher`）。插件自己不开端口、不建服务器。该路由只有 4 个端点：
+
+  | 方法 | 路径 | 作用 |
+  | --- | --- | --- |
+  | `GET` | `/roles` | 列出角色库 |
+  | `GET` | `/role?id=<id>` | 读一个角色 |
+  | `POST` | `/role` | 新建 / 覆盖一个角色 |
+  | `DELETE` | `/role?id=<id>` | 删除一个角色 |
+
+  其余一律 404；请求体上限 1 MiB。
+- **这个路由自身不做鉴权**，它的安全性来自「跑在 `127.0.0.1` 的宿主 webServer 里」（桌面端默认如此）。如果你的宿主 webServer 被绑到非 loopback 地址，这条路由会跟着一起暴露——请保持 loopback。细节见 [SECURITY.md](SECURITY.md)。
+
+### 一概不碰的东西
+
+- 模型的 provider / 模型选择 / 密钥（`llm-*` 那些行）——本插件一行都不读；
+- 会话的工具集、命令表、技能、插件组合：**不注册 agent preset、从不调用 `recompose()`**（`npm run verify` 一旦在产物里发现 `recompose` 就直接失败）；
+- 其它插件、其它配置行的任何字段；
+- 你的工作区文件与 DSH 会话日志（唯一的例外就是上面那条 role-change 消息，它属于会话记录本身）；
+- 角色文件里的 `tools` / `denyTools` / `skillsDir` / `model` 字段：**读了也一律忽略**。
+
+### `role_probe` 的额外权能（可关）
+
+`role_probe` 的 `command` 参数走的是**真实命令管线**（`ctx.commands.execute`），也就是它会执行该会话里**任何已注册的斜杠命令**（例如 `/compact`），并不限于 `/role`。这是留给测试与诊断的口子；`exposeTool: false` 之后，模型侧工具与**未装本插件时完全一致**。
+
+### 想收紧权限时
+
+```yaml
+# 你 profile 的 cordis.patch.yml
+- id: persona-switcher
+  config:
+    exposeTool: false          # 不注册 role_probe
+    announceRoleChange: false  # 不注入 role-change 消息
+    rolesDir: D:\dsh-roles     # 只让它读一个专用目录
+```
+
+### 撤销与清理
+
+- 卸载：`dsh plugin remove --profile desktop dsh-persona-switcher`——**你的角色文件不会被删**。
+- 想彻底清干净：删 `$DSH_HOME/persona-switcher/sessions.json`（所有会话遗忘角色）、按需删 `<rolesDir>`、再把 profile `cordis.patch.yml` 里可能残留的 `defaultRole` 一行去掉。除此之外没有别的痕迹。
+
 ## 安装
 
 要求：DeepSeek Harness `>= 0.2.0-rc.1`，Node.js `^22.19.0 || >=24.0.0`（随宿主）。
@@ -128,7 +199,6 @@ description: 温柔高效的鲸御姐，本鲸自称
 创建事务内，而不是等第一次 pre-step（宿主是先组装提示词、后跑 pre-step 的）。`/role none`
 记下的不是「没有选择」，而是「本会话就要部署人设」，所以配了 `defaultRole` 也不会被重新装回来。
 **当前会话**的角色仍只存在于内存里，`/role` 会分别显示「本会话角色」与「已记住」。
-**当前会话**的角色仍只存在于内存里，`/role` 会分别显示「本会话角色」与「已记住」。
 
 ## 角色库格式
 
@@ -166,6 +236,7 @@ description: 温柔高效的鲸御姐，本鲸自称
 | `rolesDir` | string | `$DSH_HOME/roles` | 角色库目录 |
 | `defaultRole` | string | 空 | 新会话默认角色 id（运行时可在设置页改） |
 | `exposeTool` | boolean | `true` | 是否注册 `role_probe` 工具（运行时可在设置页改） |
+| `announceRoleChange` | boolean | `true` | 切换后是否往该会话注入一条 role-change 声明消息（默认开：替换 system 前缀能改提示词，改不掉模型对自己旧回复的模仿；只在确信 prompt 替换已足够时才关） |
 | `routePrefix` | string | `/persona-switcher` | 设置页 CRUD 路由前缀 |
 
 覆盖配置用普通的 id 定向 patch 行（**不带 `insert`**，只改写已存在的 entry）：
@@ -300,5 +371,29 @@ the prompt of that session's very first step, not one step later.
 `/role none` records "the deployment persona, on purpose" instead of erasing the entry, so that
 choice survives a restart too and is never overridden by a configured `defaultRole`. Delete the
 file to make every session forget.
+
+### What it touches on disk
+
+Four write locations, nothing else — no network egress, no uploads, no credential reads:
+
+| Path | Written when | Content |
+| --- | --- | --- |
+| `$DSH_HOME/persona-switcher/sessions.json` | every switch / `/role none` | one record per session (role id + timestamp); atomic temp-file + rename, a corrupt file is renamed to `sessions.json.corrupt` rather than deleted |
+| `<rolesDir>/<id>/ROLE.md` | you create or edit a role in the settings page | frontmatter + persona body; a legacy flat `<rolesDir>/<id>.md` is removed at the same time |
+| `<rolesDir>/<id>/` (the directory) | you delete a role in the settings page | a real delete (no recycle bin); if the deleted role was the default, the settings entry is cleared too |
+| your profile's `cordis.patch.yml` | `/role default <id>`, setting the default in the UI, or deleting the default role | **indirect**: the plugin only calls the host settings surface, the host ConfigEditor does the writing |
+
+Everything else is in memory: one prompt section, one `/role` command, optionally one `role_probe`
+tool, one settings-page section, `ps-`prefixed styles scoped to `.dsh-panel.ps-page`, and — with
+`announceRoleChange: true` — a `<system-reminder>Role change: …` user message inside the session.
+
+The only network surface is **inbound**: a prefix route mounted on the host's existing loopback
+webServer (`routePrefix`, default `/persona-switcher`) with four endpoints (`GET /roles`,
+`GET /role?id=`, `POST /role`, `DELETE /role?id=`; anything else 404, body capped at 1 MiB). The
+plugin opens no port and runs no server of its own. That route has **no auth of its own** — it
+relies on the host webServer being bound to `127.0.0.1`, so keep it loopback. See
+[SECURITY.md](SECURITY.md). `role_probe`'s `command` argument executes a slash command through the
+real command pipeline, so it can run any command registered in that session, not just `/role`;
+`exposeTool: false` removes the tool entirely.
 
 Requires DSH `>= 0.2.0-rc.1`. [MIT](LICENSE) © 2026 yupaoa.

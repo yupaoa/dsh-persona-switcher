@@ -4,6 +4,43 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-10-07
+
+### Changed
+
+- **`announceRoleChange` now defaults to `true`.** The role-change notice used to
+  be off by default, on the assumption that replacing the head system node is
+  enough: the superseded persona text does leave the prompt, so the model cannot
+  read it again. A measured switch shows that assumption is only half right. On a
+  session switched from `whale-girl` to `amiya`, the next step's system prompt
+  already carried the new persona — zero occurrences of the old persona prose;
+  the single hit for the old role's name was the role catalogue listing — and the
+  reply still came back in the old role's voice. The transcript's own earlier
+  assistant turns demonstrate that voice far more concretely than a system prefix
+  establishes the new one, so the model follows the evidence closest to the
+  conversation. The notice is the in-band statement that resolves the conflict in
+  favour of the current role, which makes it the right default; set
+  `announceRoleChange: false` only where the prompt swap alone is trusted and the
+  extra message is unwanted weight. A profile that already pinned the old default
+  explicitly is unaffected. Verified end-to-end afterwards in a headless profile that pins nothing:
+  a real `/role troll-helper` switch produced exactly one notice in the transcript
+  (`source: {kind: "persona-switcher", form: "role-change", from: "whale-girl", to: "troll-helper"}`)
+  and the next reply came back in the new role's voice.
+
+### Added
+
+- **A "what it touches on disk" boundary section in the README** (Chinese and English). It names the
+  four write locations — the session state file, a role's `ROLE.md`, a role directory on delete, and
+  the profile patch file that the host writes on the plugin's behalf — plus the read-only surfaces,
+  the inbound loopback route and its four endpoints, the fact that the route carries no auth of its
+  own, the extra capability `role_probe` holds (its `command` argument executes any registered slash
+  command, not just `/role`), and how to tighten or fully undo all of it. The point is that the
+  plugin's reach can be audited from the README before someone decides to trust it.
+
+### Fixed
+
+- Removed a duplicated sentence in the middle of the switching walkthrough.
+
 ## [0.1.6] - 2026-10-07
 
 ### Fixed
