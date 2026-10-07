@@ -18,7 +18,10 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 
 - 🎭 **角色库**：`rolesDir` 下每个角色一个 `ROLE.md`（`id` / `name` / `description` + 人设正文）。
 - 🔄 **会话中途切换**：`/role <id>` 立即生效，下一步就是新的人设。
-- 🪄 **每角色注册为 agent preset**：走宿主原生的 `@deepseek-ai/dsh-persona` 机制，不是拼接字符串。
+- 🪄 **走宿主原生人设机制**：把角色正文注册为该 agent 作用域下的 `deployment:persona-prefix`
+  prompt section（与内置 `dsh-subagent` 给子 agent 装人设是同一条路），不是拼接字符串，
+  也不改会话的插件组合。
+- ↩️ **可随时退回**：`/role none` 撤销本会话的角色，回到部署默认人设。
 - ✅ **默认角色**：`defaultRole` 让新会话自动上身，无需每次手动切。
 - 🖥️ **设置页**：设置 → **人设切换**，可视化管理角色库（新建 / 编辑 / 删除 / 设为默认）。
 - 🧭 **专属导航图标**：设置页左栏里它有自己的面具图标，不是又一枚齿轮。
@@ -30,11 +33,12 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 | 不做 | 原因 |
 | --- | --- |
 | 不改工具集 / 技能 / 模型 | 「人设是说话的人，能力是手里的工具」——本插件只换前者 |
+| 不注册 agent preset，也不 `recompose` 会话 | 换 preset 会重绑整个 agent 插件组合，工具与命令会一起被换掉（实测 33 个工具掉到 7、10 条命令掉到 7），正是本插件要避免的事 |
 | 不提供自主切换工具（`switch_to_role` 之类） | 切换只经 `/role` 命令，避免模型自己改人设 |
 | 不读角色级 `tools` / `denyTools` / `skillsDir` / `model` 字段 | 这些字段即使写了也一律忽略，行为可预测 |
 
-需要「一条命令同时切人设 + 能力 + 技能」的完整版能力时，请改用 `dsh-role-switcher`
-（本插件是它的最小化派生，两者同为 `agent-preset` 机制，但**不要**让两者注册同名角色）。
+需要「一条命令同时切人设 + 能力 + 技能」的完整版能力时，请改用 `dsh-role-switcher`；
+本插件是它的最小化派生：两者可以并存，只是「一条命令同时换能力」的能力只在前者身上。
 
 ## 安装
 
@@ -107,8 +111,9 @@ description: 温柔高效的鲸御姐，本鲸自称
 ### 2. 在会话里切换
 
 ```text
-/role                 查看当前绑定与角色清单（当前角色带 *）
+/role                 查看本会话当前角色与角色清单（当前角色带 *）
 /role whale-girl      切换到该角色（立即生效于下一步）
+/role none            撤销本会话角色，回到部署默认人设
 /role default whale-girl   把它设为新会话的默认人设
 ```
 
@@ -129,7 +134,7 @@ description: 温柔高效的鲸御姐，本鲸自称
 
 - **只读人设字段。** `tools` / `denyTools` / `skillsDir` / `model` 等字段一律忽略。
 - **纯 frontmatter（无正文）的角色会被跳过并告警**——空人设没有意义。
-- 角色 id 由 preset registry 管理，**不要与其它插件（如 `dsh-role-switcher`）注册同名角色**。
+- 角色 id 只是你的文件名，不进任何全局注册表：换角色不改会话的工具、命令、技能与模型。
 
 ## 设置页
 
@@ -163,7 +168,8 @@ description: 温柔高效的鲸御姐，本鲸自称
 
 ## 诊断：`role_probe`
 
-`role_probe` 是唯一诊断出口，报告：当前绑定角色、注册表默认、已注册命令、surface 节点、
+`role_probe` 是唯一诊断出口，报告：本会话绑定的角色、部署默认人设是否仍生效、默认角色、
+已注册命令、会话的 agent preset 组合（作为「切换没动过组合」的证据）、surface 节点、
 system 节点清单（seq + 字符数 + surfaceOp）、上一次请求头发给模型的工具清单；还可用
 `command` 参数让真实命令管线执行一条斜杠命令：
 
@@ -175,24 +181,26 @@ system 节点清单（seq + 字符数 + surfaceOp）、上一次请求头发给�
 
 ## 工作原理（一句话）
 
-宿主侧把每个角色注册成 `agent-preset`，切换时对当前 agent 触发 `recompose`；宿主 prompt
-registry 在模型下一步用 `replace` 重建系统节点，因此 **effective 人设节点恒为 1**，被取代
-的旧人设文本不会残留在上下文里。浏览器侧只做两件事：注入设置页 section，以及给左栏换上
-自己的图标。
+角色正文被注册成**该 agent 作用域**下的 `deployment:persona-prefix` prompt section：同名
+section 在作用域内覆盖部署全局的那一份，只影响这一个会话；prompt registry 每一步重新组装
+系统节点并发出 `system-prompt/change`，所以下一步就是新的人设、旧人设文本被替换而不是堆叠。
+整条路径只碰 prompt 输入，会话的插件组合、工具、命令、技能、模型一概不动。浏览器侧只做
+两件事：注入设置页 section，以及给左栏换上自己的图标。
 
 ## 兼容性
 
 - DSH `>= 0.2.0-rc.1`；已在 DSH `0.2.0-rc.2` + Windows 桌面端实机验证。
-- 依赖注入 `agentPresets` / `commands` / `systemPrompt` / `tools`（peer 全部 optional）。
-- 与 `dsh-role-switcher` **不能同时注册同名角色**；其余互不影响。
+- 依赖注入 `commands` / `systemPrompt` / `tools`（peer 全部 optional）；`settings` 与宿主
+  `agentPresets` 只是可选读，后者仅用于 `role_probe` 的诊断输出。
+- 与 `dsh-role-switcher` 等其它人设/能力插件互不影响：本插件不注册 preset，也不占用角色 id。
 
 ## 开发
 
 ```bash
 npm install
 npm run build      # 构建 lib/client.js（esbuild，产物入仓库）
-npm run verify     # 检查不变量：bundle id、patch 行、发布配置
-npm test           # 无网络模拟测试：加载 bundle、断言注入与 section 注册
+npm run verify     # 检查不变量：bundle id、patch 行、发布配置、不许出现 recompose
+npm test           # 无网络测试：bundle 模拟 + persona 绑定不变量（作用域注册 / 替换 / 回滚）
 ```
 
 改完 `src/client/index.jsx` **必须重新 `npm run build` 并提交 `lib/client.js`**：
@@ -259,13 +267,20 @@ You are Whale Girl. Speak warmly and concisely...
 Then, inside a session:
 
 ```text
-/role                      show the current binding and the role list
+/role                      show this session's role and the role list
 /role whale-girl           switch this session to that persona
+/role none                 drop the role and go back to the deployment persona
 /role default whale-girl   make it the default for new sessions
 ```
 
 There is also a **Settings → Persona Switcher** page (list / create / edit / delete roles, set the
 default, toggle the `role_probe` diagnostic tool). Roles are plain Markdown on your disk; the plugin
 never uploads anything and never changes which tools the model can call.
+
+A role is applied as a `deployment:persona-prefix` prompt section registered in that session's own
+scope, which shadows the deployment persona for that session alone — the same mechanism the bundled
+`dsh-subagent` uses to give a child agent its persona. Nothing about the session's plugin
+composition, tools, commands, skills or model is touched, and `npm run verify` fails the build if a
+preset recomposition ever comes back.
 
 Requires DSH `>= 0.2.0-rc.1`. [MIT](LICENSE) © 2026 yupaoa.

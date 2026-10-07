@@ -12,6 +12,11 @@
  *   2. The host row must have exactly one source: this package's own
  *      `dsh.bundle.patch`. Two active loader sources resolving to the same
  *      package name fail to compose.
+ *   3. The persona route must stay a per-agent prompt section. Recomposing an
+ *      agent preset replaces the agent's whole plugin composition, so the
+ *      session loses its tools and commands along with the old identity
+ *      (measured while switching: 33 model-facing tools and 10 commands became
+ *      7 and 7). This rule keeps that defect from returning through a refactor.
  *
  * It also keeps the publish payload honest: `lib/` must be listed file by file
  * so stale backups (for example `lib/client.js.bak-*`) can never be published.
@@ -93,12 +98,52 @@ if (patch !== null) {
   }
 }
 
+// ---------------------------------------------------------------- rule 3
+// The persona route must be a per-agent prompt section, never a preset
+// recomposition — see the header comment.
+const host = await read('lib/index.js')
+if (host !== null) {
+  if (/\.\s*recompose\s*\(/.test(host)) {
+    problems.push(
+      'lib/index.js calls recompose(); a role must be a per-agent prompt section ' +
+        '(lib/persona-binding.js) because recomposition also replaces the tools (hard rule 3)'
+    )
+  }
+  if (/agentPresets\s*\.\s*(register|select|recompose)\s*\(/.test(host)) {
+    problems.push(
+      'lib/index.js registers with, selects through, or recomposes the agent-preset registry ' +
+        '(hard rule 3)'
+    )
+  }
+  if (!host.includes("from './persona-binding.js'")) {
+    problems.push('lib/index.js does not import the persona binding module (hard rule 3)')
+  }
+}
+
+const binder = await read('lib/persona-binding.js')
+if (binder !== null) {
+  for (const needle of ['deployment:persona-prefix', 'DEPLOYMENT_PERSONA_PREFIX']) {
+    if (!binder.includes(needle)) {
+      problems.push(
+        `lib/persona-binding.js does not mention ${needle}: the per-agent override must register ` +
+          'the same section name and order the global deployment persona uses (hard rule 3)'
+      )
+    }
+  }
+  if (!binder.includes('prompt.section(')) {
+    problems.push('lib/persona-binding.js does not register a prompt section (hard rule 3)')
+  }
+}
+if (problems.length === 0 && host !== null && binder !== null) {
+  notes.push('roles are bound as a per-agent prompt section; the agent preset is never recomposed')
+}
+
 // --------------------------------------------------------- publish payload
 if (pkg.dsh?.client?.platform !== 'web') {
   problems.push(`package.json dsh.client.platform is ${JSON.stringify(pkg.dsh?.client?.platform)}, expected "web"`)
 }
 const files = Array.isArray(pkg.files) ? pkg.files : []
-for (const entry of ['lib/index.js', 'lib/client.js', 'cordis.patch.yml']) {
+for (const entry of ['lib/index.js', 'lib/client.js', 'lib/persona-binding.js', 'cordis.patch.yml']) {
   if (!files.includes(entry)) problems.push(`package.json "files" must list ${entry}`)
 }
 if (files.includes('lib')) {
