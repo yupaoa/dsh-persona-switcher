@@ -13,6 +13,10 @@ jobs:
   npm-publish:
     name: publish to npm
     runs-on: ubuntu-latest
+    # `secrets` is not available in a step-level `if:`, so hoist it to a job-level
+    # env var and test that instead.
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,7 +47,9 @@ jobs:
 
       # `prepublishOnly` rebuilds the client bundle and re-runs the invariant
       # check, so the tarball can never contain a stale lib/client.js.
+      # Skipped rather than failed while the NPM_TOKEN secret is not configured
+      # yet, so pushing a tag is still a useful green signal for a repo that has
+      # no npm side set up. It starts publishing as soon as the secret exists.
       - name: Publish
+        if: env.NODE_AUTH_TOKEN != ''
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
