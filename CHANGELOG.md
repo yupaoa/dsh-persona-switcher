@@ -4,6 +4,77 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-10-08
+
+### Fixed
+
+- **A remembered role is in force from the first step after a restart.** The
+  harness assembles a model step's prompt *before* it runs `agent/pre-step`, so a
+  role restored on that seam only reached the second reply: the first one after a
+  DSH restart still ran on the deployment persona, which made a durable switch
+  look half-applied. Roles are now installed from `agent/created` as well — the
+  harness awaits those listeners inside the session-creation transaction, before
+  it releases the input queued for that agent — so the persona is already in the
+  prompt of the very first step. `agent/pre-step` keeps its job: it reconciles
+  the session on every later step and still persists a role that an older build
+  had bound in memory only.
+
+### Added
+
+- The row also sweeps the agents that are already live when it loads
+  (`ctx.agents.list()`), so a session resumed before the plugin loaded is bound
+  the same way as one created after.
+- `scripts/verify-created-bind.mjs`, run by `npm test`: drives the real
+  `lib/index.js` over a fake host and checks the whole creation-time policy — the
+  remembered role, the configured default, the `/role none` opt-out, a remembered
+  role that left the library, and the delegated-child guard — with no
+  `agent/pre-step` involved, that a later step does not churn the prompt section,
+  and that the creation listener never rejects (a throwing `agent/created`
+  listener rolls the session-creation transaction back).
+- `scripts/verify-bundle.mjs` hard rule 4 now also fails when the creation seam
+  or the live-agent sweep is removed.
+
+## [0.1.4] - 2026-10-08
+
+### Fixed
+
+- **A role switch now survives a DSH restart.** The persona is registered in the
+  session's own prompt scope, and the harness tears that scope down together with
+  the agent, so every binding used to be lost when DSH restarted and the affected
+  sessions silently fell back to the deployment persona — the switch looked like
+  it had never reached the prompt. A switch is now written to
+  `~/.dsh/persona-switcher/sessions.json` and re-applied on the session's next
+  model step, including after a restart.
+- A role that a running session already had before this upgrade is persisted on
+  its next model step, so upgrading does not mean typing `/role` again.
+- `/role none` (alias `/role off`) finally means what it says. The choice is now
+  recorded in the same file as `null` instead of being erased, so it survives a
+  restart *and* is no longer overridden by a configured `defaultRole`: any
+  unbound session used to be re-bound to the default on its very next model step,
+  which made the documented "back to the deployment persona" a one-step illusion.
+
+### Added
+
+- `lib/session-state.js`: a dependency-free store for per-session role choices.
+  Writes are atomic (temporary file plus rename), a missing file is an empty
+  memory, and an unreadable one is moved to `sessions.json.corrupt` instead of
+  being deleted. Entries older than 180 days are dropped on write, because they
+  belong to sessions that no longer exist.
+- `scripts/verify-session-state.mjs`, run by `npm test`: round-trips a choice
+  across processes against a real file and checks the whole restore policy —
+  including that a stored role which has left the library is forgotten rather
+  than resurrected, and that a role already in force is never replaced by a
+  stale entry.
+- `scripts/verify-bundle.mjs` hard rule 4: verification fails if either half of
+  the durability path (the state module, or its pre-step wiring) is removed.
+
+### Changed
+
+- `/role` lists the choice remembered for the session, spelling out an explicit
+  "deployment persona" choice rather than showing it as nothing, and `role_probe`
+  reports that choice plus the state file. A switch whose choice could not be
+  stored says so in its own output instead of being passed off as durable.
+
 ## [0.1.3] - 2026-10-08
 
 ### Fixed
@@ -108,6 +179,7 @@ First public release.
   package name. `scripts/build-client.mjs` derives it from `package.json`, and
   `scripts/verify-bundle.mjs` fails the build if it ever drifts.
 
+[0.1.4]: https://github.com/yupaoa/dsh-persona-switcher/releases/tag/v0.1.4
 [0.1.3]: https://github.com/yupaoa/dsh-persona-switcher/releases/tag/v0.1.3
 [0.1.2]: https://github.com/yupaoa/dsh-persona-switcher/releases/tag/v0.1.2
 [0.1.1]: https://github.com/yupaoa/dsh-persona-switcher/releases/tag/v0.1.1

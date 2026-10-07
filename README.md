@@ -21,8 +21,12 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 - 🪄 **走宿主原生人设机制**：把角色正文注册为该 agent 作用域下的 `deployment:persona-prefix`
   prompt section（与内置 `dsh-subagent` 给子 agent 装人设是同一条路），不是拼接字符串，
   也不改会话的插件组合。
-- ↩️ **可随时退回**：`/role none` 撤销本会话的角色，回到部署默认人设。
+- ↩️ **可随时退回**：`/role none` 撤销本会话的角色，回到部署默认人设——即使配置了
+  `defaultRole`，它也不会被重新装回来，重启后依然保持。
 - ✅ **默认角色**：`defaultRole` 让新会话自动上身，无需每次手动切。
+- 💾 **重启后依然在**：本会话选过的角色记在 `$DSH_HOME/persona-switcher/sessions.json`，
+  DSH 完全重启后该会话的**第一步**就是这个人设（角色在 agent 创建事务里就装好，不必等到第二步）；
+  卸载插件或删掉该文件即彻底忘记。
 - 🖥️ **设置页**：设置 → **人设切换**，可视化管理角色库（新建 / 编辑 / 删除 / 设为默认）。
 - 🧭 **专属导航图标**：设置页左栏里它有自己的面具图标，不是又一枚齿轮。
 - 🔍 **`role_probe` 诊断工具**：一条命令看清当前绑定、系统节点、工具清单（可关闭）。
@@ -112,12 +116,19 @@ description: 温柔高效的鲸御姐，本鲸自称
 
 ```text
 /role                 查看本会话当前角色与角色清单（当前角色带 *）
-/role whale-girl      切换到该角色（立即生效于下一步）
-/role none            撤销本会话角色，回到部署默认人设
+/role whale-girl      切换到该角色（当前这一步的提示词已组装完毕，故下一步生效）
+/role none            撤销本会话角色，回到部署默认人设（重启后仍是部署人设）
 /role default whale-girl   把它设为新会话的默认人设
 ```
 
 也可以完全不用命令：**设置 → 人设切换**里点选即可。
+
+切换会立刻写进 `$DSH_HOME/persona-switcher/sessions.json`（每个会话一条记录，只存角色选择
+与时间戳）：DSH 完全重启后，该会话**第一步**的提示词里就带着这个角色——恢复发生在 agent
+创建事务内，而不是等第一次 pre-step（宿主是先组装提示词、后跑 pre-step 的）。`/role none`
+记下的不是「没有选择」，而是「本会话就要部署人设」，所以配了 `defaultRole` 也不会被重新装回来。
+**当前会话**的角色仍只存在于内存里，`/role` 会分别显示「本会话角色」与「已记住」。
+**当前会话**的角色仍只存在于内存里，`/role` 会分别显示「本会话角色」与「已记住」。
 
 ## 角色库格式
 
@@ -168,7 +179,7 @@ description: 温柔高效的鲸御姐，本鲸自称
 
 ## 诊断：`role_probe`
 
-`role_probe` 是唯一诊断出口，报告：本会话绑定的角色、部署默认人设是否仍生效、默认角色、
+`role_probe` 是唯一诊断出口，报告：本会话绑定的角色、为该会话记住的角色与状态文件、部署默认人设是否仍生效、默认角色、
 已注册命令、会话的 agent preset 组合（作为「切换没动过组合」的证据）、surface 节点、
 system 节点清单（seq + 字符数 + surfaceOp）、上一次请求头发给模型的工具清单；还可用
 `command` 参数让真实命令管线执行一条斜杠命令：
@@ -200,7 +211,7 @@ section 在作用域内覆盖部署全局的那一份，只影响这一个会话
 npm install
 npm run build      # 构建 lib/client.js（esbuild，产物入仓库）
 npm run verify     # 检查不变量：bundle id、patch 行、发布配置、不许出现 recompose
-npm test           # 无网络测试：bundle 模拟 + persona 绑定不变量（作用域注册 / 替换 / 回滚）
+npm test           # 无网络测试：bundle 模拟 + persona 绑定不变量 + 会话状态持久化 + 创建期绑定（重启后第一步即生效）
 ```
 
 改完 `src/client/index.jsx` **必须重新 `npm run build` 并提交 `lib/client.js`**：
@@ -282,5 +293,12 @@ scope, which shadows the deployment persona for that session alone — the same 
 `dsh-subagent` uses to give a child agent its persona. Nothing about the session's plugin
 composition, tools, commands, skills or model is touched, and `npm run verify` fails the build if a
 preset recomposition ever comes back.
+
+A switch is also written to `$DSH_HOME/persona-switcher/sessions.json`, so a session keeps its
+persona across a full DSH restart — it is re-applied while the agent is being created, so it is in
+the prompt of that session's very first step, not one step later.
+`/role none` records "the deployment persona, on purpose" instead of erasing the entry, so that
+choice survives a restart too and is never overridden by a configured `defaultRole`. Delete the
+file to make every session forget.
 
 Requires DSH `>= 0.2.0-rc.1`. [MIT](LICENSE) © 2026 yupaoa.

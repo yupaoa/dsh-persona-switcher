@@ -17,6 +17,9 @@
  *      session loses its tools and commands along with the old identity
  *      (measured while switching: 33 model-facing tools and 10 commands became
  *      7 and 7). This rule keeps that defect from returning through a refactor.
+ *   4. A switch must be durable. The binding lives in one agent scope and dies
+ *      with it, so the choice is mirrored into `lib/session-state.js`'s file and
+ *      re-applied on the session's pre-step. Both halves must stay wired.
  *
  * It also keeps the publish payload honest: `lib/` must be listed file by file
  * so stale backups (for example `lib/client.js.bak-*`) can never be published.
@@ -138,12 +141,66 @@ if (problems.length === 0 && host !== null && binder !== null) {
   notes.push('roles are bound as a per-agent prompt section; the agent preset is never recomposed')
 }
 
+// ---------------------------------------------------------------- rule 4
+// A switch must survive a restart. The binding lives in one agent scope, which
+// the harness tears the scope down with, so the choice is mirrored into a state
+// file and re-applied when the agent is created — and again on every model step,
+// which is the seam that reconciles a session after the first step. Dropping any
+// of those would bring back a defect this rule exists for: a persona that is
+// silently gone after DSH restarts, or one that only reaches a resumed session's
+// second reply.
+const memory = await read('lib/session-state.js')
+if (memory !== null) {
+  for (const needle of ['export function createSessionState', 'export function planRestore']) {
+    if (!memory.includes(needle)) {
+      problems.push(`lib/session-state.js does not export ${needle.replace('export function ', '')}`)
+    }
+  }
+}
+if (host !== null) {
+  if (!host.includes("from './session-state.js'")) {
+    problems.push(
+      'lib/index.js does not import the durable session state (hard rule 4): a switch would only ' +
+        'live as long as the agent scope, so a restart would drop it'
+    )
+  }
+  for (const needle of ['restoreRole(', 'planRestore(', 'state.set(', 'state.remove(', 'NO_ROLE']) {
+    if (!host.includes(needle)) {
+      problems.push(`lib/index.js does not call ${needle} (hard rule 4): the session state is not wired`)
+    }
+  }
+  if (!host.includes('agent/pre-step')) {
+    problems.push('lib/index.js does not hook agent/pre-step (hard rule 4): nothing would re-apply a role')
+  }
+  if (!host.includes("'agent/created'")) {
+    problems.push(
+      "lib/index.js does not hook 'agent/created' (hard rule 4): the harness assembles a step's prompt " +
+        'before agent/pre-step runs, so the first reply of a resumed session would run on the deployment persona'
+    )
+  }
+  if (!host.includes('agents.list()')) {
+    problems.push(
+      'lib/index.js does not sweep the live agents (hard rule 4): a session whose agent predates this ' +
+        'row would stay on the deployment persona'
+    )
+  }
+}
+if (problems.length === 0 && host !== null && memory !== null) {
+  notes.push('a role switch is mirrored to a state file and re-applied at agent creation and on every pre-step')
+}
+
 // --------------------------------------------------------- publish payload
 if (pkg.dsh?.client?.platform !== 'web') {
   problems.push(`package.json dsh.client.platform is ${JSON.stringify(pkg.dsh?.client?.platform)}, expected "web"`)
 }
 const files = Array.isArray(pkg.files) ? pkg.files : []
-for (const entry of ['lib/index.js', 'lib/client.js', 'lib/persona-binding.js', 'cordis.patch.yml']) {
+for (const entry of [
+  'lib/index.js',
+  'lib/client.js',
+  'lib/persona-binding.js',
+  'lib/session-state.js',
+  'cordis.patch.yml'
+]) {
   if (!files.includes(entry)) problems.push(`package.json "files" must list ${entry}`)
 }
 if (files.includes('lib')) {
