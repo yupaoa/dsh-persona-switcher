@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: build & test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the client bundle
+        run: npm run build
+
+      - name: Verify bundle invariants
+        run: npm run verify
+
+      - name: Behaviour simulation
+        run: npm test
+
+      # lib/client.js is committed on purpose so `github:` installs work without
+      # a build step. That is only safe while the artifact matches its source.
+      - name: Committed bundle must match the source
+        run: git diff --exit-code -- lib/client.js
+
+      - name: Inspect the publish payload
+        run: npm pack --dry-run

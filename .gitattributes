@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+# The client bundle is compared byte-for-byte in CI; never let git normalise it.
+lib/client.js text eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.zip binary

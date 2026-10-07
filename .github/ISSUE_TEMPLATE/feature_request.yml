@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a capability, a UI improvement, or a change in behaviour.
+title: '[Feature] '
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This plugin deliberately does very little: it changes **who the model is**,
+        never **what it can do**. Requests that add tool, skill or model switching
+        to this plugin are out of scope by design — that is what the broader
+        `dsh-role-switcher` family does.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the situation, not the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+    validations:
+      required: false
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This does not require the plugin to change a session's tools, skills or model.
+          required: true
+        - label: I searched existing issues and discussions for this idea.
+          required: true

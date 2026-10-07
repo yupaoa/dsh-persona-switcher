@@ -1,0 +1,108 @@
+{
+  "name": "dsh-persona-switcher",
+  "version": "0.1.0",
+  "description": "Switch the model's persona and speaking style mid-session without touching its tools or skills. 角色切换：只切换模型的人设与语言风格，不动工具与技能。",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "persona",
+    "role",
+    "role-switching",
+    "agent-preset"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "yupaoa",
+    "url": "https://github.com/yupaoa"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yupaoa/dsh-persona-switcher.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yupaoa/dsh-persona-switcher/issues"
+  },
+  "homepage": "https://github.com/yupaoa/dsh-persona-switcher#readme",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": ">=0.2.0-rc.1"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "src",
+    "scripts",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "build:client": "node scripts/build-client.mjs",
+    "verify": "node scripts/verify-bundle.mjs",
+    "test": "node scripts/simulate-client.mjs",
+    "prepublishOnly": "node scripts/build-client.mjs && node scripts/verify-bundle.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "platform": "web"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/dsh-tools": "^0.2.0-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.4"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.4"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-client-locale": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.2.0-rc.2",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "clsx": "^2.1.1",
+    "esbuild": "0.28.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

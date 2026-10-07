@@ -1,0 +1,94 @@
+name: Bug report
+description: Something is broken — the app fails to boot, a role will not load, or the settings page misbehaves.
+title: '[Bug] '
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. DSH plugin problems are almost always version- or
+        profile-specific, so please fill in every field.
+
+        For security issues, use the private reporting link on the issue chooser
+        page instead of opening a public issue.
+  - type: input
+    id: dsh-version
+    attributes:
+      label: DSH version
+      description: 'Output of `dsh --version`, or Help → About in the desktop app.'
+      placeholder: '0.2.0-rc.2'
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: 'Output of `dsh plugin list --profile <name>`, or the version you installed.'
+      placeholder: '0.1.0'
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How did you install it?
+      options:
+        - dsh plugin add dsh-persona-switcher (npm)
+        - dsh plugin add github:yupaoa/dsh-persona-switcher
+        - dsh plugin add file:/path/to/local/clone
+        - Other (explain below)
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: 'Windows 11 24H2 / macOS 15.2 / Ubuntu 24.04'
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the exact command you ran and what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: role-file
+    attributes:
+      label: The role file, if the problem involves one
+      description: The frontmatter plus the first lines of the body. Remove anything private.
+      render: markdown
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Desktop app crash logs live in
+        `%APPDATA%\@deepseek-ai\dsh-desktop\logs\` (Windows) or
+        `~/Library/Logs/@deepseek-ai/dsh-desktop/` (macOS).
+        Terminal output from `dsh --profile <name>` is useful too.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I am on the latest release of the plugin.
+          required: true
+        - label: I restarted the DSH app after installing or changing the plugin.
+          required: true
+        - label: I have NOT added an `insert:` row for `persona-switcher` to my profile's own `cordis.patch.yml`.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true

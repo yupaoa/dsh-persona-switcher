@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# local scratch files and stale build backups
+tmp-*.mjs
+*.bak
+*.bak-*
+*.orig
+*.rej
+
+# logs and crash dumps
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

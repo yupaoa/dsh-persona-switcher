@@ -1,0 +1,12 @@
+# dsh-persona-switcher bundle patch: one host-plane row.
+#
+# The row is host-plane on purpose. It must be able to register agent presets
+# (the `agentPresets` registry) and to see every agent, and a row mounted INSIDE
+# a preset realm cannot reach either. Personas themselves are registered as
+# ordinary `@deepseek-ai/dsh-agent-preset` declarations at runtime, one per role
+# file found under the role library.
+- insert:
+    - id: persona-switcher
+      name: 'dsh-persona-switcher'
+      config:
+        rolesDir: !!js process.env.DSH_ROLES_DIR
