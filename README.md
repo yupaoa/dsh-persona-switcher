@@ -12,7 +12,7 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 > Mid-session **persona-only** switching for DeepSeek Harness: swap the model's identity and
 > speaking style without touching its tools, skills, or model selection.
 
-<!-- 截图：把图片放进 docs/ 后在此处引用，例如 ![设置页](docs/settings.png) -->
+![人设怎么进入提示词：/role → sessions.json → agent/created 绑定 → deployment:persona-prefix prompt section](docs/how-it-works.svg)
 
 ## 它能做什么
 

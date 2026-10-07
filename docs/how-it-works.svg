@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" width="900" height="400" role="img" aria-labelledby="t d">
+  <title id="t">人设怎么进入提示词：四步链路</title>
+  <desc id="d">/role 命令把角色记进 sessions.json，agent/created 在创建期把它绑定为该会话的 deployment:persona-prefix prompt section，于是重启后第一步的提示词里就已经是人设。</desc>
+  <rect x="0" y="0" width="900" height="400" fill="#ffffff"/>
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+
+  <g font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC','Segoe UI',sans-serif" fill="#1f2328">
+    <text x="28" y="40" font-size="19" font-weight="700">人设怎么进入提示词：四步链路</text>
+    <text x="28" y="63" font-size="12.5" fill="#59636e">只换「说话的人」——工具集、技能、模型选择全程不动</text>
+  </g>
+
+  <!-- box 1 -->
+  <g>
+    <rect x="28" y="88" width="196" height="108" rx="10" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+    <circle cx="50" cy="112" r="11" fill="#ddf4ff"/>
+    <text x="50" y="116.5" font-size="11.5" font-weight="700" fill="#0969da" text-anchor="middle" font-family="'Segoe UI',sans-serif">1</text>
+    <text x="70" y="116" font-size="12" fill="#0a3069" font-family="'Cascadia Mono',Consolas,monospace">/role whale-girl</text>
+    <text x="44" y="148" font-size="12" fill="#1f2328" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">会话里下命令</text>
+    <text x="44" y="169" font-size="11" fill="#59636e" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">可换、可退（/role none）</text>
+  </g>
+
+  <!-- box 2 -->
+  <g>
+    <rect x="250" y="88" width="196" height="108" rx="10" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+    <circle cx="272" cy="112" r="11" fill="#ddf4ff"/>
+    <text x="272" y="116.5" font-size="11.5" font-weight="700" fill="#0969da" text-anchor="middle" font-family="'Segoe UI',sans-serif">2</text>
+    <text x="292" y="116" font-size="12" fill="#0a3069" font-family="'Cascadia Mono',Consolas,monospace">sessions.json</text>
+    <text x="266" y="148" font-size="12" fill="#1f2328" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">本会话记住所选角色</text>
+    <text x="266" y="169" font-size="9.5" fill="#59636e" font-family="'Cascadia Mono',Consolas,monospace">$DSH_HOME/persona-switcher/</text>
+  </g>
+
+  <!-- box 3 -->
+  <g>
+    <rect x="472" y="88" width="196" height="108" rx="10" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+    <circle cx="494" cy="112" r="11" fill="#ddf4ff"/>
+    <text x="494" y="116.5" font-size="11.5" font-weight="700" fill="#0969da" text-anchor="middle" font-family="'Segoe UI',sans-serif">3</text>
+    <text x="514" y="116" font-size="12" fill="#0a3069" font-family="'Cascadia Mono',Consolas,monospace">agent/created</text>
+    <text x="488" y="148" font-size="12" fill="#1f2328" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">创建期就装好角色</text>
+    <text x="488" y="169" font-size="11" fill="#59636e" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">赶在提示词组装之前</text>
+  </g>
+
+  <!-- box 4 -->
+  <g>
+    <rect x="694" y="88" width="196" height="108" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.8"/>
+    <circle cx="716" cy="112" r="11" fill="#ddf4ff"/>
+    <text x="716" y="116.5" font-size="11.5" font-weight="700" fill="#0969da" text-anchor="middle" font-family="'Segoe UI',sans-serif">4</text>
+    <text x="736" y="116" font-size="11" fill="#0a3069" font-family="'Cascadia Mono',Consolas,monospace">deployment:persona-prefix</text>
+    <text x="710" y="148" font-size="11" fill="#1f2328" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">注册为 prompt section</text>
+    <text x="710" y="169" font-size="11" fill="#59636e" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">立刻进入本会话提示词</text>
+  </g>
+
+  <!-- arrows -->
+  <path d="M226 142 H246" stroke="#57606a" stroke-width="1.6" fill="none" marker-end="url(#arw)"/>
+  <path d="M448 142 H468" stroke="#57606a" stroke-width="1.6" fill="none" marker-end="url(#arw)"/>
+  <path d="M670 142 H690" stroke="#57606a" stroke-width="1.6" fill="none" marker-end="url(#arw)"/>
+
+  <!-- restart band -->
+  <g>
+    <rect x="28" y="216" width="862" height="58" rx="10" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="46" y="241" font-size="12.5" fill="#1f2328" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">宿主重启走同一条路：重新创建 agent → 第 ③ 步绑定 → 第 ④ 步进提示词</text>
+    <text x="46" y="262" font-size="12" fill="#1a7f37" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">所以重启后这个会话的第一步回复，就已经带着人设了</text>
+  </g>
+
+  <!-- contrast -->
+  <g>
+    <rect x="28" y="292" width="420" height="46" rx="8" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1.5"/>
+    <text x="44" y="311" font-size="11.5" fill="#59636e" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">0.1.4 及以前</text>
+    <text x="44" y="329" font-size="12" fill="#59636e" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">第一步 = 部署人设，第二步才换过来</text>
+    <rect x="470" y="292" width="420" height="46" rx="8" fill="#dafbe1" stroke="#aceebb" stroke-width="1.5"/>
+    <text x="486" y="311" font-size="11.5" fill="#1a7f37" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">0.1.5 起</text>
+    <text x="486" y="329" font-size="12" fill="#1a7f37" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">第一步的提示词里就已经是这个角色</text>
+  </g>
+
+  <text x="28" y="372" font-size="11" fill="#8c959f" font-family="'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif">提示词只增不改：部署人设 + 角色正文（实测 7056 → 7382 字符），工具与命令数量不变</text>
+</svg>
