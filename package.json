@@ -1,6 +1,6 @@
 {
   "name": "dsh-persona-switcher",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Switch the model's persona and speaking style mid-session without touching its tools or skills. 角色切换：只切换模型的人设与语言风格，不动工具与技能。",
   "keywords": [
     "deepseek-harness",
@@ -58,8 +58,8 @@
     "build": "node scripts/build-client.mjs",
     "build:client": "node scripts/build-client.mjs",
     "verify": "node scripts/verify-bundle.mjs",
-    "test": "node scripts/simulate-client.mjs && node scripts/verify-host-binding.mjs && node scripts/verify-session-state.mjs && node scripts/verify-created-bind.mjs",
-    "prepublishOnly": "node scripts/build-client.mjs && node scripts/verify-bundle.mjs && node scripts/verify-host-binding.mjs && node scripts/verify-session-state.mjs && node scripts/verify-created-bind.mjs"
+    "test": "node scripts/simulate-client.mjs && node scripts/verify-host-binding.mjs && node scripts/verify-session-state.mjs && node scripts/verify-created-bind.mjs && node scripts/verify-role-notice.mjs",
+    "prepublishOnly": "node scripts/build-client.mjs && node scripts/verify-bundle.mjs && node scripts/verify-host-binding.mjs && node scripts/verify-session-state.mjs && node scripts/verify-created-bind.mjs && node scripts/verify-role-notice.mjs"
   },
   "dsh": {
     "bundle": {

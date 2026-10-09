@@ -4,6 +4,35 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2026-10-09
+
+### Fixed
+
+- **`/role none` now announces the change, like every other persona transition.** The notice was
+  wired into the switch path alone, so it covered role-to-role switches and nothing else: the clear
+  path dropped the binding and wrote the opt-out without ever queueing a notice, and the notice
+  builder itself returned an empty string whenever the `from` side was unknown, which made the
+  omission structural rather than accidental. The symptom was precisely what the notice exists to
+  prevent — the prompt goes back to the deployment persona while the reply keeps arriving in the
+  dismissed role's voice, because this conversation's own earlier assistant turns still demonstrate
+  that voice far more concretely than a system prefix establishes the new one. The notice is now
+  built from *both* sides of the transition (`null` standing for the deployment persona), and every
+  deliberate change queues one: role → role, deployment persona → role, role → `/role none`, and a
+  remembered role that vanished from the library handing the session to another one. The cases that
+  must stay quiet still do: an automatic rebind that leaves the session's role unchanged (the same
+  role restored after a restart, or a configured default applied to a session that never chose one)
+  changes nothing the model can read, so announcing it would put a bogus "role change" message in
+  front of every resumed session.
+
+### Added
+
+- **`scripts/verify-role-notice.mjs`, a behavioural guard for the notice contract.** Seven checks: the
+  `/role none` notice and its one-shot nature, the deployment-persona → role direction, the
+  role-to-role notice naming both roles, silence when the session already ran the deployment persona
+  (no-op opt-out), silence under `announceRoleChange: false`, silence for a same-role restore, and
+  the vanished-role hand-over. Run against the 0.1.7 code it fails exactly three of them, which is what makes
+  it a regression guard rather than a description. Wired into `npm test` and `prepublishOnly`.
+
 ## [0.1.7] - 2026-10-07
 
 ### Changed

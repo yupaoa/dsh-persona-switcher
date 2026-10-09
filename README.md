@@ -70,7 +70,7 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 - 一条角色库 prompt section（`persona-switcher.catalogue`）+ 每会话一条 agent 作用域的人设 section；
 - 一条 `/role` 斜杠命令；`exposeTool: true` 时一个 `role_probe` 工具；
 - 浏览器侧：一个设置页 section（id 固定 `persona-switcher`，左栏第 4 项）+ 若干 `ps-` 前缀样式（锚定在 `.dsh-panel.ps-page`，不污染宿主 UI）；
-- `announceRoleChange: true`（默认）时，切换后往该会话注入一条 `<system-reminder>Role change: …` 用户消息——它是**真实会话消息**，所以会出现在该会话的记录里，这是刻意的（见「配置项」）。
+- `announceRoleChange: true`（默认）时，切换后往该会话注入一条 `<system-reminder>Role change: …` 用户消息——它是**真实会话消息**，所以会出现在该会话的记录里，这是刻意的（见「配置项」）。**每一次人设变更都会发**：角色 → 角色、部署人设 → 角色、角色 → `/role none` 回到部署人设、以及被记住的角色从库里消失后改由别的角色接手，四种方向各有一条对应的声明；只有「本会话原本就是这个角色」的自动恢复保持安静，因为那不是变更（见「配置项」）。
 
 ### 网络
 
@@ -236,7 +236,7 @@ description: 温柔高效的鲸御姐，本鲸自称
 | `rolesDir` | string | `$DSH_HOME/roles` | 角色库目录 |
 | `defaultRole` | string | 空 | 新会话默认角色 id（运行时可在设置页改） |
 | `exposeTool` | boolean | `true` | 是否注册 `role_probe` 工具（运行时可在设置页改） |
-| `announceRoleChange` | boolean | `true` | 切换后是否往该会话注入一条 role-change 声明消息（默认开：替换 system 前缀能改提示词，改不掉模型对自己旧回复的模仿；只在确信 prompt 替换已足够时才关） |
+| `announceRoleChange` | boolean | `true` | 切换后是否往该会话注入一条 role-change 声明消息（默认开：替换 system 前缀能改提示词，改不掉模型对自己旧回复的模仿；只在确信 prompt 替换已足够时才关）。覆盖**所有**人设变更方向，含 `/role none` 退回部署人设——这个方向尤其需要声明，因为该会话里模型的旧回复正是在模仿刚被撤销的角色。只对「本会话角色没变」的自动恢复静默 |
 | `routePrefix` | string | `/persona-switcher` | 设置页 CRUD 路由前缀 |
 
 覆盖配置用普通的 id 定向 patch 行（**不带 `insert`**，只改写已存在的 entry）：
@@ -386,6 +386,9 @@ Four write locations, nothing else — no network egress, no uploads, no credent
 Everything else is in memory: one prompt section, one `/role` command, optionally one `role_probe`
 tool, one settings-page section, `ps-`prefixed styles scoped to `.dsh-panel.ps-page`, and — with
 `announceRoleChange: true` — a `<system-reminder>Role change: …` user message inside the session.
+Every persona change gets one — role to role, deployment persona to role, `/role none` back to the
+deployment persona, and a remembered role that vanished from the library handing over to another —
+while an automatic rebind that leaves the session's role unchanged stays silent.
 
 The only network surface is **inbound**: a prefix route mounted on the host's existing loopback
 webServer (`routePrefix`, default `/persona-switcher`) with four endpoints (`GET /roles`,
