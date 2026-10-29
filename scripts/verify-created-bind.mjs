@@ -38,6 +38,8 @@ const ROLE_ID = 'whale-girl'
 const ROLE_PERSONA = '你是DeepSeek鲸鱼娘，温柔高效的鲸御姐。'
 const PLAIN_ID = 'plain-helper'
 const PLAIN_PERSONA = '你是一个简洁的助手。'
+/** Marker for the explicit no-role section; its full text is implementation-owned. */
+const NONE_MARKER = 'No role is active'
 const tempDirs = []
 process.on('exit', () => {
   for (const dir of tempDirs) {
@@ -285,7 +287,11 @@ await check('a session that chose the deployment persona is never reclaimed by t
   })
   const agent = fakeAgent('session-opted')
   await app.fire('agent/created', { agent })
-  assert.equal(agent.prompt.sections.size, 0, 'the opt-out must survive the default')
+  assert.equal(agent.prompt.sections.size, 1, 'the opt-out installs the explicit no-role section')
+  assert.ok(
+    agent.prompt.sections.get(PERSONA_SECTION).includes(NONE_MARKER),
+    'the resumed opt-out must say that no role is active'
+  )
   const memory = await readMemory(stateFile)
   assert.equal(memory.get('session-opted'), null, 'the opt-out is still recorded')
 })
@@ -301,7 +307,11 @@ await check('a remembered role that left the library is forgotten at creation', 
   const { app, stateFile } = await scenario({ seed: { 'session-gone': 'retired-role' } })
   const agent = fakeAgent('session-gone')
   await app.fire('agent/created', { agent })
-  assert.equal(agent.prompt.sections.size, 0, 'a role that no longer exists must not be bound')
+  assert.equal(agent.prompt.sections.size, 1, 'a role that no longer exists must not be bound')
+  assert.ok(
+    agent.prompt.sections.get(PERSONA_SECTION).includes(NONE_MARKER),
+    'a forgotten role falls back to the explicit no-role section'
+  )
   assert.ok(
     app.warns.some((line) => line.includes('retired-role')),
     `expected a warning naming the role, got ${JSON.stringify(app.warns)}`

@@ -42,6 +42,8 @@ const ROLE_ID = 'whale-girl'
 const ROLE_PERSONA = '你是DeepSeek鲸鱼娘，温柔高效的鲸御姐。'
 const PLAIN_ID = 'plain-helper'
 const PLAIN_PERSONA = '你是一个简洁的助手。'
+/** Marker for the explicit no-role section; its full text is implementation-owned. */
+const NONE_MARKER = 'No role is active'
 const tempDirs = []
 process.on('exit', () => {
   for (const dir of tempDirs) {
@@ -277,7 +279,11 @@ await check('/role none announces the switch back to the deployment persona', as
   await app.fire('agent/created', { agent })
   const result = await runCommand(app, agent, 'none')
   assert.equal(result.kind, 'success', `expected the command to succeed, got ${JSON.stringify(result)}`)
-  assert.equal(agent.prompt.sections.size, 0, 'the dismissed role must leave the session prompt')
+  assert.equal(agent.prompt.sections.size, 1, 'the dismissed role is replaced by the explicit no-role section')
+  assert.ok(
+    agent.prompt.sections.get(PERSONA_SECTION).includes(NONE_MARKER),
+    'the session prompt must say that no role is active'
+  )
   const notices = await step(app, agent)
   assert.equal(notices.length, 1, `expected exactly one notice, got ${JSON.stringify(notices.map((n) => n.source))}`)
   const [notice] = notices
@@ -298,7 +304,8 @@ await check('a switch from the deployment persona onto a role is announced too',
   const { app } = await scenario()
   const agent = fakeAgent('session-plain')
   await app.fire('agent/created', { agent })
-  assert.equal(agent.prompt.sections.size, 0, 'a session with no seed and no default carries no role')
+  assert.equal(agent.prompt.sections.size, 1, 'a session with no seed and no default carries the no-role section')
+  assert.ok(agent.prompt.sections.get(PERSONA_SECTION).includes(NONE_MARKER))
   const result = await runCommand(app, agent, PLAIN_ID)
   assert.equal(result.kind, 'success', `expected the command to succeed, got ${JSON.stringify(result)}`)
   const notices = await step(app, agent)
@@ -335,7 +342,8 @@ await check('announceRoleChange: false keeps every transition silent', async () 
   const agent = fakeAgent('session-quiet')
   await app.fire('agent/created', { agent })
   await runCommand(app, agent, 'none')
-  assert.equal(agent.prompt.sections.size, 0, 'the switch itself must still happen')
+  assert.equal(agent.prompt.sections.size, 1, 'the switch itself must still replace the role with the no-role section')
+  assert.ok(agent.prompt.sections.get(PERSONA_SECTION).includes(NONE_MARKER))
   assert.deepEqual(await step(app, agent), [], 'the opt-out must suppress the notice')
 })
 

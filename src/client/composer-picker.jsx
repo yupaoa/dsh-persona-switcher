@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loadOptions, loadRoleLabel, selectRole } from './role-picker.js'
+import { COMPOSER_EVENT, COMPOSER_KEY, readComposerShown } from './composer-preference.js'
 
 /** First unused suggestion; the settings editor still lets the user change it. */
 export const nextRoleId = (roles) => {
@@ -233,13 +234,44 @@ export const installComposerPicker = (ctx, { api, t, card }) => {
   ctx.inject(['sessions', 'slots'], (scope) => {
     const sessions = scope.get('sessions')
     const slots = scope.get('slots')
-    slots.inject('conversation.input.left', () => slots.register({
-      name: 'conversation.input.left',
-      id: 'persona-switcher-picker',
-      order: 10, // dsh-meme is order 5; permission precedes this list, model follows it.
-      label: () => t('composerPersona'),
-      inject: (sessionId) => ({ sessionId })
-    }, ({ sessionId }) => <ComposerPicker key={sessionId} sessionId={sessionId} api={api} t={t}
-      sessions={sessions} openLibrary={() => openRoleLibrary(slots, card, t)} />))
+    let disposeEntry
+    const mount = () => {
+      if (disposeEntry !== undefined || !readComposerShown()) return
+      disposeEntry = slots.inject('conversation.input.left', () => slots.register({
+        name: 'conversation.input.left',
+        id: 'persona-switcher-picker',
+        order: 10, // dsh-meme is order 5; permission precedes this list, model follows it.
+        label: () => t('composerPersona'),
+        inject: (sessionId) => ({ sessionId })
+      }, ({ sessionId }) => <ComposerPicker key={sessionId} sessionId={sessionId} api={api} t={t}
+        sessions={sessions} openLibrary={() => openRoleLibrary(slots, card, t)} />))
+    }
+    const sync = () => {
+      if (readComposerShown()) {
+        mount()
+        return
+      }
+      disposeEntry?.()
+      disposeEntry = undefined
+    }
+    const onPreference = () => sync()
+    const onStorage = (event) => {
+      if (event.key !== null && event.key !== COMPOSER_KEY) return
+      sync()
+    }
+    if (typeof window?.addEventListener === 'function') {
+      window.addEventListener(COMPOSER_EVENT, onPreference)
+      window.addEventListener('storage', onStorage)
+    }
+    const effect = scope.effect ?? ctx.effect
+    effect(() => () => {
+      if (typeof window?.removeEventListener === 'function') {
+        window.removeEventListener(COMPOSER_EVENT, onPreference)
+        window.removeEventListener('storage', onStorage)
+      }
+      disposeEntry?.()
+      disposeEntry = undefined
+    }, 'persona-switcher: composer preference')
+    sync()
   })
 }

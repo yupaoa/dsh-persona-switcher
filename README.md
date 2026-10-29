@@ -13,19 +13,19 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 > speaking style without touching its tools, skills, or model selection.
 
 > **环境要求**：DSH `>= 0.2.0-rc.1`（兼容 `0.2.1-rc.x`）。
+> 版本变化见 [CHANGELOG.md](CHANGELOG.md)。
 
 ![人设怎么进入提示词：/role → sessions.json → agent/created 绑定 → persona-switcher:persona prompt section](docs/how-it-works.svg)
 
 ## 它能做什么
 
-- 🎭 **角色库**：`rolesDir` 下每个角色一个 `ROLE.md`（`id` / `name` / `description` + 人设正文）。
+- 📚 **角色库**：`rolesDir` 下每个角色一个 `ROLE.md`（`id` / `name` / `description` + 人设正文）。
 - 🔄 **会话中途切换**：`/role <id>` 立即生效，下一步就是新的人设。
-- 🎭 **输入栏人设按钮**：权限与表情按钮之后、模型选择器之前，点击 **人设** 搜索并选择本地角色；
-  未绑定时按钮显示「人设」，绑定后直接显示该角色的名称，没有名称则显示 id。切换对话、重启恢复
-  或通过 `/role` 修改绑定后都会同步；长名称省略显示，悬停可查看全名。
-  优先显示名称，未命名时显示 id，当前角色带勾。每次打开重新读取角色库，切换沿用 `/role` 的
-  会话绑定、重启恢复和提示词注入。菜单里的 **添加人设** 打开原有「设置 → 人设切换 → 角色库」
-  新增表单；id 自动建议 `char001`、`char002`……并跳过已有 id，仍可手动修改。有未完成的编辑时保留该表单。
+- 🎭 **输入栏人设按钮**：权限与表情按钮之后、模型选择器之前，点击 **人设** 搜索并选择本地角色。
+  未绑定时显示「人设」，绑定后显示角色名（无名称时显示 id），长名称省略、悬停可看全名；
+  切换对话、重启恢复或 `/role` 修改后都会同步。列表支持名称 / id / 描述搜索、当前角色勾选、
+  键盘操作、失败重试与空库提示，每次打开重读角色库。**添加人设** 打开设置页原有新增表单，
+  id 自动建议 `char001`、`char002`……并跳过已有 id，未完成的编辑会保留。
 - 🖱️ **点选切换**：输入框里打出 `/` 后点 **role**，直接弹出角色列表——顶部可搜索（名字、id、
   描述都能搜），当前角色带勾，第一行固定是 `none`（回到部署人设），点一下就等于执行
   `/role <id>`。列表每次打开都重读角色库，设置页里的增删立刻反映出来；命令本身的
@@ -36,8 +36,9 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 - 🧬 **不动宿主的身份行**：部署 persona 前缀 `You are a coding agent powered by the {{model}} model.`
   由宿主自己注册，本插件**永不遮蔽**它——切角色是**加一段人设**，不是换掉身份，所以模型始终
   知道自己跑在哪个模型上。
-- ↩️ **可随时退回**：`/role none` 撤销本会话的角色（人设为空，宿主的身份行照旧）——即使配置了
-  `defaultRole`，它也不会被重新装回来，重启后依然保持。
+- ↩️ **可随时退回**：`/role none` 撤销本会话的角色，换成一个明确的「当前无人设」段落——说明
+  部署人设才是当前身份、角色目录只是菜单，模型不会从目录里挑一个角色来扮演；宿主的身份行照旧。
+  即使配置了 `defaultRole`，它也不会被重新装回来，重启后依然保持。
 - ✅ **默认角色**：`defaultRole` 让新会话自动上身，无需每次手动切。
 - 💾 **重启后依然在**：本会话选过的角色记在 `$DSH_HOME/persona-switcher/sessions.json`，
   DSH 完全重启后该会话的**第一步**就是这个人设（角色在 agent 创建事务里就装好，不必等到第二步）；
@@ -66,8 +67,8 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 
 ## 它动你磁盘上的哪些文件（权能边界）
 
-一句话：**全插件只写下面 6 个位置，不联网、不上传角色内容、不读任何凭据文件**；
-除这 6 处以外的一切都只发生在内存里（一条 prompt section + 一条会话消息）。
+一句话：**宿主侧只写下面 6 个位置，浏览器侧只写本机 localStorage；不联网、不上传角色内容、不读任何凭据文件**。
+除这些以外的一切都只发生在内存里（一条 prompt section + 一条会话消息）。
 
 ### 会写入的 6 个位置
 
@@ -87,7 +88,7 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 - 本会话自身的 surface / 事件流：`role_probe` 用它报告系统节点、上一次请求头里发给模型的工具清单。
 - 宿主 `agentPresets.composedPreset()`：**只读**，仅用于报告「切换没动过会话组合」这一证据。
 
-### 只在内存里、不落盘的东西
+### 只在内存或浏览器本地（不写入上面 6 处）
 
 - 一条角色库 prompt section（`persona-switcher:catalogue`，顺带把可用角色清单列进系统提示词）+ 每会话一条 agent 作用域的人设 section；
 - 一条 `/role` 斜杠命令；`exposeTool: true` 时一个 `role_probe` 工具；
@@ -110,7 +111,7 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
   | `GET` | `/role?id=<id>` | 读一个角色 |
   | `POST` | `/role` | 新建 / 覆盖一个角色 |
   | `DELETE` | `/role?id=<id>` | 删除一个角色 |
-  | `GET` | `/session?session=<id>` | 该会话记住的角色（`roleId`）与**此刻在生效**的角色（`liveRoleId`，未绑定均为 `null`）——`/role` 列表的勾读的是后者 |
+  | `GET` | `/session?session=<id>` | 该会话记住的角色（`roleId`）与**此刻在生效**的角色（`liveRoleId`，未绑定均为 `null`）——`/role` 列表的勾和屏幕吉祥物读的都是后者 |
   | `POST` | `/mascot?role=<id>` | 为角色导入立绘（JSON：`image` 为 data URL、`box` 为 `WxH`） |
   | `GET` | `/mascot-file/<file>` | 读回一张立绘 |
   | `DELETE` | `/mascot?role=<id>` | 清除该角色的立绘 |
@@ -153,7 +154,7 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 `dsh plugin add` 会把参数原样透传给 `pnpm add`，所以下面三种写法都可用。
 
 ```powershell
-# 1) 从 npm 安装（推荐；发布后可用）
+# 1) 从 npm 安装（推荐）
 dsh plugin add --profile desktop dsh-persona-switcher
 
 # 2) 直接从 GitHub 安装（无需 npm，仓库内已提交构建产物，装完即可用）
@@ -219,7 +220,7 @@ description: 温柔高效的鲸御姐，本鲸自称
 ```text
 /role                 查看本会话当前角色与角色清单（当前角色带 *）
 /role whale-girl      切换到该角色（当前这一步的提示词已组装完毕，故下一步生效）
-/role none            撤销本会话角色，回到部署默认人设（重启后仍是部署人设）
+/role none            撤销本会话角色，回到部署默认人设，并安装「当前无人设」段落（重启后仍是部署人设）
 /role default whale-girl   把它设为新会话的默认人设
 ```
 
@@ -228,7 +229,8 @@ description: 温柔高效的鲸御姐，本鲸自称
 切换会立刻写进 `$DSH_HOME/persona-switcher/sessions.json`（每个会话一条记录，只存角色选择
 与时间戳）：DSH 完全重启后，该会话**第一步**的提示词里就带着这个角色——恢复发生在 agent
 创建事务内，而不是等第一次 pre-step（宿主是先组装提示词、后跑 pre-step 的）。`/role none`
-记下的不是「没有选择」，而是「本会话就要部署人设」，所以配了 `defaultRole` 也不会被重新装回来。
+记下的不是「没有选择」，而是「本会话就要部署人设」，所以配了 `defaultRole` 也不会被重新装回来；
+它的提示词里还会有一个「当前无人设」段落，明确告诉模型角色目录只是菜单，不能从里面挑身份。
 **当前会话**的角色仍只存在于内存里，`/role` 会分别显示「本会话角色」与「已记住」。
 
 ## 角色库格式
@@ -256,6 +258,9 @@ description: 温柔高效的鲸御姐，本鲸自称
 
 - 改新会话的默认角色（`defaultRole` 输入框，留空即回到部署默认；改完保存会写进 profile 配置）；
 - 开关 `role_probe` 诊断工具（`exposeTool`）；
+- **输入框**卡片：开关输入框底部的「人设」选择器（默认开）。这也是本机值（存在
+  `localStorage`），关闭后注销对应的 `conversation.input.left` 条目，`/role` 命令与已绑定
+  人设不受影响；刷新后保持，跨窗口同步；
 - **屏幕吉祥物**卡片：总开关（默认开）、大小滑块（0.5×–2.5×）、「切换动画」三档（跟随系统 /
   始终开 / 始终关）、「回到默认位置」。这些都是**本机值**（存在 `localStorage`），不进 profile
   配置；改完当场生效，不需要重启。「切换动画」控制角色替换时立绘的翻纸动画：默认跟随系统的
@@ -313,7 +318,9 @@ system 节点清单（seq + 字符数 + surfaceOp）、上一次请求头发给�
 137，紧跟在部署 persona 前缀 `deployment:persona-prefix`（order 0）之后），只影响这一个会话；
 部署那份前缀（`You are a coding agent powered by the {{model}} model.`）原封不动地留在提示词里。
 prompt registry 每一步重新组装系统节点并发出 `system-prompt/change`，所以下一步就是新的人设、
-旧人设文本被替换而不是堆叠；`/role none` 只是把这个人设段撤掉（人设为空），身份行不受影响。
+旧人设文本被替换而不是堆叠；`/role none` 把角色正文换成一个明确的「当前无人设」段落，身份行
+不受影响。没有这个段落时，模型会把角色目录当成可选身份列表，自己挑一个来扮演（实测挑中过
+`whale-girl`）；现在目录被明确标成「菜单，不是当前身份」。
 整条路径只碰 prompt 输入，会话的插件组合、工具、命令、技能、模型一概不动。浏览器侧只做两件事：
 注入设置页 section，以及给左栏换上自己的图标。
 
@@ -418,7 +425,7 @@ Then, inside a session:
 ```text
 /role                      show this session's role and the role list
 /role whale-girl           switch this session to that persona
-/role none                 drop the role: the persona goes back to empty
+/role none                 drop the role and install the explicit no-role section
 /role default whale-girl   make it the default for new sessions
 ```
 
@@ -460,8 +467,9 @@ A role is applied as a prompt section of this plugin's own — `persona-switcher
 after the deployment persona prefix (order 0) and registered in that session's own scope — the same
 mechanism the bundled `dsh-subagent` uses to give a child agent its persona. The deployment's own
 prefix (`You are a coding agent powered by the {{model}} model.`) is never shadowed, so a switch adds
-persona prose beside the identity line instead of replacing it, and `/role none` leaves the persona
-empty rather than the identity. Nothing about the session's plugin composition, tools, commands,
+persona prose beside the identity line instead of replacing it, and `/role none` swaps the role prose
+for an explicit no-role section that marks the role catalogue as an inactive menu. Nothing about the
+session's plugin composition, tools, commands,
 skills or model is touched, and `npm run verify` fails the build if a preset recomposition — or a
 scoped re-registration of the deployment's own section — ever comes back.
 

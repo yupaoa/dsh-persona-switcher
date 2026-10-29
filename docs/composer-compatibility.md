@@ -22,6 +22,11 @@ installed **dsh-meme 0.1.64**, plus the locked SDK **0.2.0-rc.2** SlotCore.
 - New-role IDs are suggested from the library; a fresh read before saving rejects
   an ID already present. This is a UI conflict check, not a server-side atomic
   create-only guarantee against simultaneous writes by multiple clients.
+- The composer cell is optional per browser. The settings page writes
+  `dsh-persona-switcher:composer-shown` to `localStorage`; the plugin disposes the
+  `conversation.input.left` cell when it is off and re-registers it when it is on.
+  A same-page broadcast and the native `storage` event keep every window in sync.
+  This only hides the entry point: `/role` and the bound persona are untouched.
 - The button reads the live binding on mount and after a selection; unbound means
   "Persona", otherwise it shows the role name or ID. A 1.5-second `/revision` poll
   detects command-driven changes without fetching persona prose every tick. Full
@@ -37,7 +42,8 @@ installed **dsh-meme 0.1.64**, plus the locked SDK **0.2.0-rc.2** SlotCore.
   with React and actual SDK SlotCore. Local fixtures stand in for DSH services,
   permission/meme/model controls and the settings form primitives.
 - Browser assertions: additive slot ordering and disposal without disturbing the
-  meme entry; name / ID search; live `null` precedence; separate conversation
+  meme entry; settings toggle unmounts / remounts the cell, survives reload and
+  follows another tab's `storage` event; name / ID search; live `null` precedence; separate conversation
   dispatch; unchanged unsent draft; late-response cancellation on session changes;
   failure / retry; empty library; focus, arrows, Tab and Escape support; settings
   section navigation; original editor save and immediate list refresh; editable

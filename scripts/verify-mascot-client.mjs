@@ -598,6 +598,8 @@ const realPoll = async (label, predicate, timeoutMs = 3000) => {
 class FakeAbortError extends Error {}
 const requests = []
 let sessionAnswer = { ok: true, roleId: null }
+/** Artificial latency for `/session`, so a test can pin down a restart race. */
+let sessionDelayMs = 0
 let rolesAnswer = { ok: true, roles: [] }
 /**
  * The revision counter's answer, or `null` for "this host predates the
@@ -637,6 +639,10 @@ globalThis.fetch = async (url, options = {}) => {
     return { ok: false, status: 500, json: async () => ({ ok: false, error: 'boom' }) }
   }
   const payload = target.includes('/session') ? sessionAnswer : rolesAnswer
+  if (target.includes('/session') && sessionDelayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, sessionDelayMs))
+    if (options.signal?.aborted) throw new FakeAbortError('aborted')
+  }
   return { ok: true, status: 200, json: async () => payload }
 }
 const countOf = (needle) => requests.filter((url) => url.includes(needle)).length
@@ -1501,6 +1507,48 @@ const realSleep = sleep
   await realSleep(120)
   check('coming back to the tab asks again immediately', revisionReads.count > hiddenBefore + hiddenGrew, String(revisionReads.count))
   view.unmount()
+
+  // `/role none` on a counter host must clear on the SAME counter cycle. The
+  // role effect restarts on a revision bump, and its local "reported" cache used
+  // to start at null; a null answer then looked like "no change", leaving the
+  // previous artwork on screen until the seat changed.
+  sessionAnswer = { ok: true, roleId: 'amiya', liveRoleId: 'amiya' }
+  sessionDelayMs = 600
+  bumpRevision()
+  resetRequests()
+  const noneView = renderComponent(PersonaMascot, { ctx: mkCtx(mkSeat('session-none').service), t: IDENTITY, onShown: () => {} })
+  await realPoll('the none-test mascot shows amiya first', () => {
+    noneView.render()
+    return imageOf(noneView.element)?.props?.src?.includes('/a.png') === true
+  }, 4000)
+  sessionAnswer = { ok: true, roleId: null, liveRoleId: null }
+  bumpRevision()
+  await realPoll('clearing a role clears the mascot on the counter cycle', () => {
+    noneView.render()
+    return hiddenMascot(noneView.element)
+  }, 4000)
+  check('a counter-driven /role none does not keep the old artwork', imageOf(noneView.element) === undefined)
+  sessionDelayMs = 0
+
+  // The host distinguishes the remembered choice (`roleId`) from the role in
+  // force (`liveRoleId`). The mascot draws the latter: a session that inherited
+  // the configured default has no memory but does have a live role, and a stale
+  // memory must not outvote a live `/role none`.
+  sessionAnswer = { ok: true, roleId: null, liveRoleId: 'amiya' }
+  bumpRevision()
+  await realPoll('a role inherited from the default shows its artwork', () => {
+    noneView.render()
+    return imageOf(noneView.element)?.props?.src?.includes('/a.png') === true
+  }, 4000)
+  check('liveRoleId is enough even when roleId is null', imageOf(noneView.element)?.props?.src?.includes('/a.png') === true)
+  sessionAnswer = { ok: true, roleId: 'amiya', liveRoleId: null }
+  bumpRevision()
+  await realPoll('a live none wins over a stale remembered role', () => {
+    noneView.render()
+    return hiddenMascot(noneView.element)
+  }, 4000)
+  check('a stale roleId cannot keep artwork after the live role is gone', imageOf(noneView.element) === undefined)
+  noneView.unmount()
 
   // (b) A host WITHOUT the counter (a 404): the mascot must keep working, just
   // on the slow cycle. This is the supported older-host path.

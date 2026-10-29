@@ -11,6 +11,12 @@ import { installMascot } from './mascot.jsx'
 import { installRolePicker } from './role-picker.js'
 import { installComposerPicker, nextRoleId } from './composer-picker.jsx'
 import {
+  COMPOSER_EVENT,
+  COMPOSER_KEY,
+  readComposerShown,
+  writeComposerShown
+} from './composer-preference.js'
+import {
   CHANGED_EVENT,
   MOTION_EVENT,
   MOTION_KEY,
@@ -161,6 +167,8 @@ class PersonaSwitcherCardController {
   /** `true` while the editor stages a brand-new role (id still editable). */
   editingNew = false
   busy = false
+  /** Composer picker switch, mirrored from the client-side key. */
+  composerShown = true
   /** Master mascot switch, mirrored from the client-side key. */
   mascotShown = true
   /** Mascot size multiplier, mirrored from the client-side key. */
@@ -183,6 +191,7 @@ class PersonaSwitcherCardController {
     this.t = t
     this.form = new SettingsFormModel(scope, [settingsTextField('defaultRole')])
     this.store = this.form.bind(() => this.projection())
+    this.composerShown = readComposerShown()
     this.mascotShown = readShown()
     this.mascotSize = readSize()
     this.mascotMotion = readMotion()
@@ -206,6 +215,7 @@ class PersonaSwitcherCardController {
       busy: this.busy,
       tab: this.tab,
       confirming: this.confirming,
+      composerShown: this.composerShown,
       mascotShown: this.mascotShown,
       mascotSize: this.mascotSize,
       mascotMotion: this.mascotMotion
@@ -411,6 +421,25 @@ class PersonaSwitcherCardController {
       /* a blocked storage still gets the broadcast below */
     }
     broadcast(SHOWN_EVENT)
+    this.form.publish()
+  }
+
+  /**
+   * Show or hide the composer persona picker.
+   *
+   * This is a browser preference, like the mascot switch: the picker lives in
+   * this same bundle, hears the broadcast, and mounts or unmounts its slot cell.
+   */
+  setComposerShown(value) {
+    this.composerShown = writeComposerShown(value)
+    this.form.publish()
+  }
+
+  /** Re-read the composer preference after another window changes it. */
+  syncComposerState() {
+    const shown = readComposerShown()
+    if (shown === this.composerShown) return
+    this.composerShown = shown
     this.form.publish()
   }
 
@@ -1231,6 +1260,7 @@ const PersonaSwitcherSection = (props) => {
     confirming,
     status,
     editingNew,
+    composerShown,
     mascotShown,
     mascotSize,
     mascotMotion
@@ -1250,21 +1280,25 @@ const PersonaSwitcherSection = (props) => {
         event.key !== null &&
         event.key !== SHOWN_KEY &&
         event.key !== SIZE_KEY &&
-        event.key !== MOTION_KEY
+        event.key !== MOTION_KEY &&
+        event.key !== COMPOSER_KEY
       ) {
         return
       }
       controller.syncMascotState()
+      controller.syncComposerState()
     }
     window.addEventListener('storage', onStored)
     window.addEventListener(SHOWN_EVENT, onStored)
     window.addEventListener(SIZE_EVENT, onStored)
     window.addEventListener(MOTION_EVENT, onStored)
+    window.addEventListener(COMPOSER_EVENT, onStored)
     return () => {
       window.removeEventListener('storage', onStored)
       window.removeEventListener(SHOWN_EVENT, onStored)
       window.removeEventListener(SIZE_EVENT, onStored)
       window.removeEventListener(MOTION_EVENT, onStored)
+      window.removeEventListener(COMPOSER_EVENT, onStored)
     }
   }, [controller])
 
@@ -1605,6 +1639,27 @@ const PersonaSwitcherSection = (props) => {
           <section className="ps-card">
             <div className="ps-card__head">
               <div>
+                <h3>{t('composerCard')}</h3>
+                <p>{t('composerCardHint')}</p>
+              </div>
+            </div>
+            <div className="ps-card__body">
+              <div className="ps-row">
+                <div className="ps-row__text">
+                  <span className="ps-row__label">{t('composerShown')}</span>
+                  <span className="ps-row__hint">{t('composerShownHint')}</span>
+                </div>
+                <Switch
+                  checked={composerShown}
+                  label={t('composerShown')}
+                  onChange={(value) => controller.setComposerShown(value)}
+                />
+              </div>
+            </div>
+          </section>
+          <section className="ps-card">
+            <div className="ps-card__head">
+              <div>
                 <h3>{t('mascotCard')}</h3>
                 <p>{t('mascotCardHint')}</p>
               </div>
@@ -1781,6 +1836,10 @@ const zh = {
   saving: '保存中…',
   overridden: '已由部署配置覆盖',
   reset: '重置',
+  composerCard: '输入框',
+  composerCardHint: '控制对话输入框下方的角色入口。',
+  composerShown: '开启输入框「人设」选择器',
+  composerShownHint: '关闭后输入框下方不再显示「人设」按钮，/role 命令和已绑定的人设不受影响。仅影响本机。',
   mascotAria: '当前角色吉祥物',
   mascotCard: '屏幕吉祥物',
   mascotCardHint: '为角色导入立绘后，当前会话的角色会以吉祥物形式出现在界面上，可拖到你喜欢的位置。',
@@ -1861,6 +1920,10 @@ const en = {
   saving: 'Saving…',
   overridden: 'Overridden by the deployment',
   reset: 'Reset',
+  composerCard: 'Composer',
+  composerCardHint: 'Controls the persona entry below the conversation composer.',
+  composerShown: 'Show persona picker in composer',
+  composerShownHint: 'Turning this off hides the Persona button below the composer. The /role command and the bound persona are unaffected. This device only.',
   mascotAria: 'Current role mascot',
   mascotCard: 'On-screen mascot',
   mascotCardHint:

@@ -768,7 +768,13 @@ const PersonaMascot = (props) => {
     const controller = new AbortController()
     let cancelled = false
     let timer = null
-    let reported = null
+    let reported
+    // The first answer after this effect (re)starts must be published even when
+    // it is `null`. A revision bump restarts the effect, and a local cache that
+    // began at `null` made `/role none` look like "no change": the old artwork
+    // stayed until the seat changed. Later identical answers are still ignored,
+    // so a steady role does not restart the artwork's fade every cycle.
+    let first = true
     /** `true` once a read has failed, so the cycle backs off instead of hammering. */
     let failing = false
     const load = async () => {
@@ -776,11 +782,19 @@ const PersonaMascot = (props) => {
       if (cancelled || controller.signal.aborted) return
       failing = !read.ok
       const payload = read.ok ? read.value : null
-      const roleId = payload === null ? null : (payload.roleId ?? null)
+      // `liveRoleId` is the role in force; `roleId` is the remembered choice.
+      // They can disagree (a session inheriting the configured default has no
+      // memory, and a failed memory write can leave a stale id behind), so the
+      // mascot draws the live one. An older host has only `roleId`; an explicit
+      // `liveRoleId: null` must not fall back to the memory.
+      const roleId =
+        payload === null ? null : Object.hasOwn(payload, 'liveRoleId') ? payload.liveRoleId : payload.roleId
       const next = typeof roleId === 'string' && roleId !== '' ? roleId : null
       // Only a CHANGE republishes: an identical answer every cycle must not
-      // re-render the mascot (and must not restart the artwork's fade).
-      if (next !== reported) {
+      // re-render the mascot (and must not restart the artwork's fade). The
+      // first answer is always published, including `null` — see `first`.
+      if (first || next !== reported) {
+        first = false
         reported = next
         setSession(next)
       }

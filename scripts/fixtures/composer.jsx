@@ -89,9 +89,14 @@ const slots = {
   inject: (_, register) => register(),
   register: (options, Component) => {
     const dispose = core.register(options, Component)
-    disposers.push(dispose)
-    entries.set(options.name, { options, Component })
-    return dispose
+    const entry = { options, Component }
+    const disposeEntry = () => {
+      if (entries.get(options.name) === entry) entries.delete(options.name)
+      dispose()
+    }
+    disposers.push(disposeEntry)
+    entries.set(options.name, entry)
+    return disposeEntry
   }
 }
 const ctx = {
@@ -113,7 +118,14 @@ const primitives = {
   Button: ({ children, size, variant, ...props }) => h('button', props, children),
   SettingsForm: ({ children }) => h('div', null, children),
   SettingsValueField: () => null,
-  Switch: () => null
+  Switch: ({ checked, label, disabled, onChange }) => h('button', {
+    type: 'button',
+    role: 'switch',
+    'aria-checked': checked === true ? 'true' : 'false',
+    'aria-label': label,
+    disabled,
+    onClick: () => onChange?.(checked !== true)
+  }, checked === true ? '开' : '关')
 }
 window.__ModuleLoader__ = { load: ({ factory }) => {
   const deps = { react: React, 'react-dom': ReactDOM, 'react-dom/client': ReactDOMClient,
@@ -125,9 +137,18 @@ const root = ReactDOMClient.createRoot(document.querySelector('#persona'))
 fixtures.render = (sessionId) => {
   fixtures.session = sessionId
   const entry = entries.get('conversation.input.left')
+  if (entry === undefined) {
+    root.render(null)
+    return
+  }
   root.render(h(entry.Component, entry.options.inject(sessionId)))
 }
 fixtures.dispose = () => { root.unmount(); settingsRoot.unmount(); disposers.reverse().forEach((dispose) => dispose()) }
 fixtures.slotIds = () => core.entriesOfSlot('conversation.input.left').map((entry) => entry.options.id)
+fixtures.setComposerShown = (shown) => {
+  localStorage.setItem('dsh-persona-switcher:composer-shown', shown ? '1' : '0')
+  window.dispatchEvent(new Event('persona-switcher:composer-changed'))
+  fixtures.render(fixtures.session)
+}
 fixtures.nextRoleId = nextRoleId
 fixtures.unavailableSettings = () => openRoleLibrary({}, {}, (key) => key).catch((e) => e.message)

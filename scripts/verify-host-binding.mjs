@@ -38,6 +38,8 @@ const DEPLOYMENT_PREFIX = 'You are a coding agent powered by the ecnu-max model.
 
 const ROLE_A = { id: 'whale-girl', name: '鲸鱼娘', description: '', persona: '你是DeepSeek鲸鱼娘，温柔高效。' }
 const ROLE_B = { id: 'plain', name: 'Plain', description: '', persona: 'You are a plain assistant.' }
+/** Marker for the explicit no-role section; its full text is implementation-owned. */
+const NONE_MARKER = 'No role is active'
 
 /**
  * A stand-in for one agent-scoped prompt registry, seeded with the deployment
@@ -170,7 +172,10 @@ check('the deployment identity line stays in the prompt, before the role prose',
     'the model must read the deployment identity line and then the role prose'
   )
   bindings.clear(agent)
-  assert.equal(prompt.render(), DEPLOYMENT_PREFIX, '/role none leaves an empty persona, not an empty identity line')
+  const rendered = prompt.render()
+  assert.ok(rendered.startsWith(`${DEPLOYMENT_PREFIX}\n`), 'the deployment identity line must remain first')
+  assert.ok(rendered.includes(NONE_MARKER), '/role none must install the explicit no-role section')
+  assert.equal(rendered.includes(ROLE_A.persona), false, 'the dismissed role prose must be gone')
 })
 
 check('re-applying the role in force is a no-op', () => {
@@ -198,19 +203,51 @@ check('switching replaces the persona without stacking or throwing', () => {
   assert.equal(bindings.roleOf(agent), ROLE_B.id)
 })
 
-check('clearing a role empties the persona and keeps the deployment prefix', () => {
+check('clearing a role installs an explicit no-role section', () => {
   const prompt = scopedPrompt()
   const agent = agentWith(prompt)
   const bindings = createPersonaBindings()
   bindings.install(agent, ROLE_A)
   const cleared = bindings.clear(agent)
   assert.deepEqual(cleared, { changed: true, from: ROLE_A.id })
-  assert.equal(prompt.sections.size, 1, 'the role section must be gone from the prompt')
-  assert.equal(prompt.sections.has(PERSONA_SECTION), false, 'no role section survives a clear')
+  assert.equal(prompt.sections.size, 2, 'the role section is replaced by the no-role section')
+  const none = prompt.sections.get(PERSONA_SECTION)
+  assert.ok(none.includes(NONE_MARKER), `the no-role section must state the current state: ${none}`)
+  assert.match(none, /role (list|catalogue) is a menu/i, 'the catalogue must be marked as inactive')
   assert.equal(prompt.sections.get(DEPLOYMENT_SECTION), DEPLOYMENT_PREFIX)
-  assert.equal(bindings.roleOf(agent), undefined)
+  assert.equal(bindings.roleOf(agent), undefined, 'a no-role section is not a bound role')
   assert.equal(bindings.size, 0)
   assert.deepEqual(bindings.clear(agent), { changed: false, from: undefined }, 'clearing twice is harmless')
+  assert.equal(prompt.sections.get(PERSONA_SECTION), none, 'clearing twice keeps exactly one no-role section')
+})
+
+check('ensureNone installs one neutral section and never displaces a role', () => {
+  const prompt = scopedPrompt()
+  const agent = agentWith(prompt)
+  const bindings = createPersonaBindings()
+  assert.equal(bindings.ensureNone(agent), true, 'the first call installs the no-role section')
+  assert.ok(prompt.sections.get(PERSONA_SECTION).includes(NONE_MARKER))
+  assert.equal(bindings.ensureNone(agent), false, 'a second call is a no-op')
+  assert.equal(bindings.roleOf(agent), undefined)
+  bindings.install(agent, ROLE_A)
+  assert.equal(bindings.ensureNone(agent), false, 'the no-role section must not overwrite a role')
+  assert.equal(prompt.sections.get(PERSONA_SECTION), ROLE_A.persona)
+})
+
+check('installing a role replaces the no-role section instead of stacking', () => {
+  const prompt = scopedPrompt()
+  const agent = agentWith(prompt)
+  const bindings = createPersonaBindings()
+  bindings.ensureNone(agent)
+  const result = bindings.install(agent, ROLE_A)
+  assert.deepEqual(result, { changed: true, from: undefined })
+  assert.equal(prompt.sections.size, 2, 'one persona section plus the deployment prefix')
+  assert.equal(prompt.sections.get(PERSONA_SECTION), ROLE_A.persona)
+  assert.deepEqual(
+    prompt.registered.map((text) => text === ROLE_A.persona ? 'role' : text.includes(NONE_MARKER) ? 'none' : text),
+    ['none', 'role'],
+    'the neutral section is disposed before the role section is registered'
+  )
 })
 
 check('sessions are bound independently', () => {
