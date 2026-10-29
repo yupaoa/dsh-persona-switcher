@@ -9,6 +9,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { installMascot } from './mascot.jsx'
 import { installRolePicker } from './role-picker.js'
+import { installComposerPicker, nextRoleId } from './composer-picker.jsx'
 import {
   CHANGED_EVENT,
   MOTION_EVENT,
@@ -266,7 +267,7 @@ class PersonaSwitcherCardController {
 
   /** Begin editing a role; `null` prepares a new-role row. */
   edit(role) {
-    this.editing = role === null ? emptyRole() : { ...role }
+    this.editing = role === null ? { ...emptyRole(), id: nextRoleId(this.roles) } : { ...role }
     this.editingNew = role === null
     this.tab = 'library'
     this.confirming = null
@@ -287,6 +288,13 @@ class PersonaSwitcherCardController {
     this.error = null
     this.form.publish()
     try {
+      if (this.editingNew) {
+        const payload = await api('GET', '/roles')
+        if (!Array.isArray(payload?.roles)) throw new Error(this.t('composerLibraryUnavailable'))
+        if (payload.roles.some((role) => role.id === this.editing.id.trim())) {
+          throw new Error(this.t('roleIdExists'))
+        }
+      }
       await api('POST', '/role', this.editing)
       this.editing = null
       this.editingNew = false
@@ -1705,6 +1713,7 @@ export function apply(ctx) {
   // here rather than built as its own bundle.
   ctx.effect(() => installMascot(ctx, t), 'persona-switcher: mascot')
   const card = new PersonaSwitcherCardController(ctx.configForms.get(CONFIG_KEY), t)
+  installComposerPicker(ctx, { api, t, card })
   ctx.effect(
     () => () => {
       card.dispose()
@@ -1726,6 +1735,12 @@ export function apply(ctx) {
 }
 
 const zh = {
+  composerPersona: '人设',
+  composerAdd: '添加人设',
+  composerRetry: '重试',
+  composerSettingsUnavailable: '无法打开设置，请从设置 → 人设切换 → 角色库添加人设。',
+  composerLibraryUnavailable: '角色库暂不可用，请刷新后重试。',
+  roleIdExists: '这个 ID 已存在，请换一个 ID；编辑已有角色请从角色库打开。',
   nav: '人设切换',
   subtitle: '新会话的默认人设，以及可切换角色的集中管理。',
   pageMeta: '默认人设 · 角色库 · role_probe 工具',
@@ -1800,6 +1815,12 @@ const zh = {
 }
 
 const en = {
+  composerPersona: 'Persona',
+  composerAdd: 'Add persona',
+  composerRetry: 'Retry',
+  composerSettingsUnavailable: 'Cannot open settings. Use Settings → Persona Switcher → Role library.',
+  composerLibraryUnavailable: 'Role library unavailable. Refresh and try again.',
+  roleIdExists: 'This ID already exists. Choose another ID, or edit the existing role from the library.',
   nav: 'Persona Switcher',
   subtitle: 'The default persona for new sessions, plus one place for every switchable role.',
   pageMeta: 'Default persona · role library · role_probe tool',

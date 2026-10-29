@@ -1,0 +1,155 @@
+import assert from 'node:assert/strict'
+import { build } from 'esbuild'
+import { chromium } from 'playwright'
+import { readFile, mkdir } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import { fileURLToPath } from 'node:url'
+
+const root = fileURLToPath(new URL('../', import.meta.url))
+const fixture = await build({ absWorkingDir: root, entryPoints: ['scripts/fixtures/composer.jsx'], bundle: true,
+  write: false, format: 'iife', jsx: 'automatic', define: { 'process.env.NODE_ENV': '"development"' } })
+const plugin = await readFile(new URL('../lib/client.js', import.meta.url))
+const html = `<!doctype html><meta charset="utf-8"><style>
+body{font:16px system-ui;margin:24px;background:#f8fafc;color:#20242c}textarea{box-sizing:border-box;width:100%;height:100px}
+#composer{position:fixed;bottom:24px;left:24px;right:24px;border:1px solid #ddd;border-radius:20px;padding:12px;background:white}
+#toolbar{display:flex;align-items:center;gap:8px}#model{margin-left:auto}button{font:inherit}#settings{position:fixed;inset:24px;background:white;z-index:1000;overflow:auto;padding:24px}
+</style><h1>Persona composer regression fixture</h1>
+<div id="composer"><textarea aria-label="Draft">Unsent draft /role char003</textarea><div id="toolbar">
+<button id="permission">工作区内修改</button><button id="meme">☺</button><div id="persona"></div><button id="model">DeepSeek</button>
+</div></div><div id="settings" hidden></div>
+<script src="/fixture.js"></script><script src="/plugin.js"></script><script>fixtures.render('a')</script>`
+const server = createServer((req, res) => {
+  res.setHeader('content-type', req.url === '/' ? 'text/html; charset=utf-8' : 'application/javascript')
+  res.end(req.url === '/' ? html : req.url === '/fixture.js' ? fixture.outputFiles[0].text : plugin)
+})
+await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+let browser
+try {
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) })
+  const page = await browser.newPage({ viewport: { width: 1100, height: 760 } })
+  const errors = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.goto(`http://127.0.0.1:${server.address().port}`)
+  assert.deepEqual(await page.evaluate(() => fixtures.slotIds()), ['meme-picker', 'persona-switcher-picker'])
+  assert.equal(await page.evaluate(() => fixtures.nextRoleId(Array.from({ length: 1000 }, (_, i) => ({ id: `char${String(i + 1).padStart(3, '0')}` })))), 'char1001')
+  assert.equal(await page.evaluate(() => fixtures.unavailableSettings()), 'composerSettingsUnavailable')
+  const trigger = page.locator('.ps-composer-trigger')
+  const expectLabel = (label) => page.waitForFunction((text) => document.querySelector('.ps-composer-trigger')?.textContent === text, label)
+  const dialog = page.getByRole('dialog', { name: '人设', exact: true })
+  const search = page.getByRole('textbox', { name: '搜索角色…' })
+  const open = async () => { await trigger.click(); await search.waitFor(); await dialog.getByRole('button', { name: /使用部署人设/ }).waitFor() }
+  await expectLabel('小鲸') // Restored/default binding is visible before opening.
+  await open()
+  assert.equal(await search.evaluate((el) => el === document.activeElement), true)
+  assert.equal(await dialog.getByRole('button', { name: /小鲸/ }).getAttribute('aria-pressed'), 'true')
+  await search.fill('char003')
+  await dialog.getByRole('button', { name: /char003/ }).click()
+  await dialog.waitFor({ state: 'hidden' })
+  await expectLabel('char003')
+  assert.deepEqual(await page.evaluate(() => fixtures.commands), [{ sessionId: 'a', line: '/role char003' }])
+  assert.equal(await page.getByRole('textbox', { name: 'Draft' }).inputValue(), 'Unsent draft /role char003')
+  await page.evaluate(() => fixtures.render('b'))
+  await expectLabel('人设')
+  await open()
+  assert.equal(await dialog.getByRole('button', { name: /使用部署人设/ }).getAttribute('aria-pressed'), 'true', 'live null overrides stale remembered id')
+  await search.press('ArrowDown')
+  assert.equal(await dialog.getByRole('button', { name: /使用部署人设/ }).evaluate((el) => el === document.activeElement), true)
+  await search.focus()
+  await search.press('Shift+Tab')
+  assert.equal(await dialog.getByRole('button', { name: /添加人设/ }).evaluate((el) => el === document.activeElement), true)
+  await page.keyboard.press('Tab')
+  assert.equal(await search.evaluate((el) => el === document.activeElement), true)
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'hidden' })
+  assert.equal(await trigger.evaluate((el) => el === document.activeElement), true)
+  await open()
+  await page.evaluate(() => { fixtures.rejected = true })
+  await dialog.getByRole('button', { name: /小鲸/ }).click()
+  await dialog.getByRole('alert').waitFor()
+  assert.match(await dialog.getByRole('alert').textContent(), /Session unavailable/)
+  assert.equal(await trigger.textContent(), '人设', 'failed switch must not claim the selected name')
+  await page.evaluate(() => { fixtures.rejected = false })
+  await dialog.getByRole('button', { name: /小鲸/ }).click()
+  await dialog.waitFor({ state: 'hidden' })
+  await expectLabel('小鲸')
+  assert.equal(await page.evaluate(() => fixtures.live.a), 'char003')
+  assert.equal(await page.evaluate(() => fixtures.live.b), 'char001')
+  await page.evaluate(() => { fixtures.fail = true })
+  await trigger.click()
+  await dialog.getByRole('button', { name: '重试' }).waitFor()
+  await page.evaluate(() => { fixtures.fail = false })
+  await dialog.getByRole('button', { name: '重试' }).click()
+  await dialog.getByRole('button', { name: /小鲸/ }).waitFor()
+  await page.locator('h1').click()
+  await dialog.waitFor({ state: 'hidden' })
+  await page.evaluate(() => { fixtures.slow = 150 })
+  await trigger.click()
+  await page.evaluate(() => fixtures.render('a'))
+  await dialog.waitFor({ state: 'hidden' })
+  await page.waitForTimeout(200)
+  await page.evaluate(() => { fixtures.slow = 0 })
+  await open()
+  await dialog.getByRole('button', { name: /添加人设/ }).click()
+  await page.locator('.ps-field input').first().waitFor()
+  assert.equal(await page.evaluate(() => fixtures.settingsId), 'persona-switcher')
+  assert.equal(await page.locator('.ps-field input').first().inputValue(), 'char002')
+  await page.locator('.ps-field input').first().fill('custom-persona')
+  await page.locator('.ps-field input').nth(1).fill('New persona')
+  await page.locator('.ps-field textarea').fill('A new persona')
+  await page.locator('.ps-card__foot').getByRole('button', { name: '保存', exact: true }).click()
+  await page.locator('.ps-role__name').filter({ hasText: 'New persona' }).waitFor()
+  await page.evaluate(() => { document.querySelector('#settings').hidden = true })
+  await open()
+  await dialog.getByRole('button', { name: /New persona/ }).waitFor()
+  const ordered = await page.evaluate(() => ['#permission', '#meme', '.ps-composer-trigger', '#model'].map((s) => document.querySelector(s).getBoundingClientRect().x))
+  assert.deepEqual(ordered, [...ordered].sort((a, b) => a - b))
+  for (const width of [1100, 480]) {
+    await page.setViewportSize({ width, height: 760 })
+    await page.waitForFunction(() => {
+      const r = document.querySelector('.ps-composer-popup').getBoundingClientRect()
+      return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight
+    })
+    const box = await dialog.boundingBox()
+    assert(box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= 760)
+  }
+  if (process.env.PERSONA_SCREENSHOT_DIR) {
+    await mkdir(process.env.PERSONA_SCREENSHOT_DIR, { recursive: true })
+    await page.setViewportSize({ width: 1100, height: 760 })
+    await page.screenshot({ path: `${process.env.PERSONA_SCREENSHOT_DIR}/composer.png` })
+  }
+  await page.keyboard.press('Escape')
+  // A slash-command switch is detected even with the menu closed.
+  await page.evaluate(() => { fixtures.live.a = null; fixtures.revision += 1 })
+  await expectLabel('人设')
+  await page.evaluate(() => { fixtures.live.a = 'char001'; fixtures.revision += 1 })
+  await expectLabel('小鲸')
+  await page.evaluate(() => { fixtures.failSession = true; window.dispatchEvent(new Event('focus')) })
+  await page.waitForTimeout(100)
+  assert.equal(await trigger.textContent(), '小鲸', 'read failure must retain the confirmed label')
+  await page.evaluate(() => {
+    fixtures.failSession = false
+    fixtures.roles[0].name = '很长的人设名称'.repeat(20)
+    window.dispatchEvent(new Event('focus'))
+  })
+  await expectLabel('很长的人设名称'.repeat(20))
+  const labelBox = await trigger.boundingBox()
+  assert(labelBox.width <= 160)
+  assert.equal(await trigger.getAttribute('title'), '很长的人设名称'.repeat(20))
+  await open()
+  await dialog.getByRole('button', { name: /使用部署人设/ }).click()
+  await dialog.waitFor({ state: 'hidden' })
+  await expectLabel('人设')
+  await page.evaluate(() => { fixtures.roles = [] })
+  await open()
+  await dialog.getByText('角色库里还没有角色，先到设置页新增一个。').waitFor()
+  await dialog.getByRole('button', { name: /添加人设/ }).click()
+  await page.locator('.ps-field input').first().waitFor()
+  assert.equal(await page.locator('.ps-field input').first().inputValue(), 'char001')
+  await page.evaluate(() => fixtures.dispose())
+  assert.deepEqual(await page.evaluate(() => fixtures.slotIds()), ['meme-picker'], 'unloading must leave other plugins registered')
+  assert.deepEqual(errors, [])
+  console.log('composer browser: dispatch, session isolation, stale loads, keyboard, retry, empty library, original settings CRUD, IDs and layout PASS')
+} finally {
+  await browser?.close()
+  await new Promise((resolve) => server.close(resolve))
+}

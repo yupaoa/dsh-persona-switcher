@@ -38,6 +38,14 @@ jobs:
       - name: Behaviour simulation
         run: npm test
 
+      - name: Install browser for composer regression
+        if: matrix.node == '24'
+        run: npx playwright install --with-deps chromium
+
+      - name: Composer browser regression
+        if: matrix.node == '24'
+        run: npm run test:browser
+
       # lib/client.js is committed on purpose so `github:` installs work without
       # a build step. That is only safe while the artifact matches its source.
       - name: Committed bundle must match the source

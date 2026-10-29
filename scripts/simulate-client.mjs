@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const react = await import('react')
+const reactDom = await import('react-dom')
 const jsxRuntime = await import('react/jsx-runtime')
 // The npm rc package's transitive deps are undeclared and its CSS modules
 // cannot load in Node, so the simulation uses a behavior-equivalent shim.
@@ -109,6 +110,7 @@ globalThis.window = {
 const moduleCache = new Map()
 function hostRequire(id) {
   if (id === 'react') return react
+  if (id === 'react-dom') return reactDom
   if (id === 'react/jsx-runtime') return jsxRuntime
   if (id === 'react-dom/client') return reactDomClient
   if (id === '@deepseek-ai/dsh-client-ui-primitives') return primitives
@@ -289,7 +291,7 @@ const ctx = {
     }
   },
   inject(names, run) {
-    const services = { commandUi, sessions }
+    const services = { commandUi, sessions, slots: ctx.slots }
     const missing = names.filter((name) => services[name] === undefined)
     if (missing.length > 0) {
       throw new Error(`the client asked for unavailable services: ${missing.join(', ')}`)
@@ -454,6 +456,12 @@ if (entry.id !== 'persona-switcher') throw new Error('register id mismatch')
 if (entry.label() !== '人设切换') throw new Error('register label mismatch')
 
 const injected = entry.inject()
+// The composer adds its own list cell; it must not claim another plugin's cell.
+const composer = registered.find((r) => r.slotName === 'conversation.input.left')?.registerFn()
+if (composer?.id !== 'persona-switcher-picker' || composer.order <= 5) {
+  throw new Error('composer must coexist after dsh-meme in its own slot entry')
+}
+if (composer.inject('s2').sessionId !== 's2') throw new Error('composer lost its scoped session id')
 const actionKeys = ['edit', 'resetField', 'save', 'discard']
 for (const key of actionKeys) {
   if (typeof injected[key] !== 'function') throw new Error(`inject missing form action ${key}`)
@@ -485,6 +493,7 @@ if (toolWrite === undefined) throw new Error('exposeTool write not recorded')
 injected.controller.edit(null)
 state = store.getSnapshot()
 if (state.editing === null) throw new Error('edit(null) did not open editor')
+if (state.editing.id !== 'char001') throw new Error('new role must suggest char001')
 injected.controller.patchEditing('name', 'Engineer')
 state = store.getSnapshot()
 if (state.editing.name !== 'Engineer') throw new Error('patchEditing lost')
@@ -494,6 +503,18 @@ if (state.editing !== null) throw new Error('commitEdit did not close editor')
 if (state.roles.length !== 2) throw new Error('commitEdit did not reload roles')
 const post = fetchCalls.find((c) => c.url === '/persona-switcher/role' && c.options?.method === 'POST')
 if (post === undefined) throw new Error('POST /role not issued')
+injected.controller.edit(null)
+if (store.getSnapshot().editing.id !== 'char002') throw new Error('suggestion must skip an existing id')
+injected.controller.patchEditing('id', 'teacher')
+const writesBeforeCollision = fetchCalls.filter((c) => c.options?.method === 'POST').length
+await injected.controller.commitEdit()
+if (store.getSnapshot().editing?.id !== 'teacher' || !store.getSnapshot().error) {
+  throw new Error('duplicate id must keep the editor open and explain the conflict')
+}
+if (fetchCalls.filter((c) => c.options?.method === 'POST').length !== writesBeforeCollision) {
+  throw new Error('creating a duplicate must not overwrite the existing role')
+}
+injected.controller.cancelEdit()
 
 // Delete a role through the library.
 await injected.controller.remove(state.roles.find((r) => r.id === 'teacher'))

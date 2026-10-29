@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- 人设按钮未绑定时显示「人设」，绑定后显示名称（无名称时显示 id）；随当前对话、恢复的绑定
+  及 `/role` 修改同步。长名称省略并提供完整名称提示，读取失败保留上次确认的名称。
+- 输入框底部新增「人设」按钮，独立注册在原生 `conversation.input.left` 列表槽，排在
+  `dsh-meme` 表情按钮后、模型选择器前，不替换其他插件控件。支持名称 / id / 描述搜索、
+  当前角色标记、键盘操作、失败重试与空库提示；通过既有 `/role` 命令切换当前对话。
+- 菜单「添加人设」直接打开原设置页的角色库新增表单；保留未完成的编辑。
+  新角色默认填入首个未使用的 `char001`、`char002`……，允许修改；保存新角色前重新检查 ID 冲突。
+- 增加真实 React / 浏览器回归测试和原生 SlotCore 共存检查，覆盖会话隔离、草稿保留、
+  设置页 CRUD、卸载清理、窄窗口布局及错误恢复。
+
+### Fixed
+
+- 当前生效角色明确为 `null` 时，不再错误地用旧记忆中的角色标记选中状态。
+
 ## [0.3.1] - 2026-10-21
 
 ### Added

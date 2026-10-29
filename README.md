@@ -20,6 +20,12 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 
 - 🎭 **角色库**：`rolesDir` 下每个角色一个 `ROLE.md`（`id` / `name` / `description` + 人设正文）。
 - 🔄 **会话中途切换**：`/role <id>` 立即生效，下一步就是新的人设。
+- 🎭 **输入栏人设按钮**：权限与表情按钮之后、模型选择器之前，点击 **人设** 搜索并选择本地角色；
+  未绑定时按钮显示「人设」，绑定后直接显示该角色的名称，没有名称则显示 id。切换对话、重启恢复
+  或通过 `/role` 修改绑定后都会同步；长名称省略显示，悬停可查看全名。
+  优先显示名称，未命名时显示 id，当前角色带勾。每次打开重新读取角色库，切换沿用 `/role` 的
+  会话绑定、重启恢复和提示词注入。菜单里的 **添加人设** 打开原有「设置 → 人设切换 → 角色库」
+  新增表单；id 自动建议 `char001`、`char002`……并跳过已有 id，仍可手动修改。有未完成的编辑时保留该表单。
 - 🖱️ **点选切换**：输入框里打出 `/` 后点 **role**，直接弹出角色列表——顶部可搜索（名字、id、
   描述都能搜），当前角色带勾，第一行固定是 `none`（回到部署人设），点一下就等于执行
   `/role <id>`。列表每次打开都重读角色库，设置页里的增删立刻反映出来；命令本身的
@@ -55,7 +61,7 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 | 不改工具集 / 技能 / 模型 | 「人设是说话的人，能力是手里的工具」——本插件只换前者 |
 | 不注册 agent preset，也不 `recompose` 会话 | 换 preset 会重绑整个 agent 插件组合，工具与命令会一起被换掉（实测 33 个工具掉到 7、10 条命令掉到 7），正是本插件要避免的事 |
 | 不遮蔽宿主的 persona 前缀 | 那是部署写的身份行（`You are a coding agent powered by the {{model}} model.`）——覆盖它模型就不知道自己跑在哪个模型上；角色以独立 section 加在它后面 |
-| 不提供自主切换工具（`switch_to_role` 之类） | 切换只经 `/role` 命令，避免模型自己改人设 |
+| 不提供自主切换工具（`switch_to_role` 之类） | 切换只经 `/role` 命令（含人设按钮调用），避免模型自己改人设 |
 | 不读角色级 `tools` / `denyTools` / `skillsDir` / `model` 字段 | 这些字段即使写了也一律忽略，行为可预测 |
 
 ## 它动你磁盘上的哪些文件（权能边界）
@@ -86,6 +92,10 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
 - 一条角色库 prompt section（`persona-switcher:catalogue`，顺带把可用角色清单列进系统提示词）+ 每会话一条 agent 作用域的人设 section；
 - 一条 `/role` 斜杠命令；`exposeTool: true` 时一个 `role_probe` 工具；
 - 浏览器侧：一个设置页 section（id 固定 `persona-switcher`，注册在 `settings.section` 槽位、`order: 15`）+ 若干 `ps-` 前缀样式（锚定在 `.dsh-panel.ps-page`，不污染宿主 UI）；
+- 输入栏另有独立的 `conversation.input.left` 列表条目（id `persona-switcher-picker`、order `10`，
+  在 `dsh-meme` 的 order `5` 后），及仅在打开时出现的菜单 portal。样式限于 `ps-composer-*`；
+  不替换权限、表情或模型槽位，不改输入草稿。新增入口调用宿主设置 shell 的 `openSection` 动作，
+  若当前宿主不提供该动作，会提示从设置页手动进入，选择人设仍可使用。
 - 浏览器侧还有一个**独立的 React root**（挂在 `<body>` 下的 `#dsh-persona-switcher-mascot-dock`）承载屏幕吉祥物，它只读宿主的 `sidebarRight.mounted` 快照来知道「现在看着哪个会话」，**从不写入该服务**；总开关、大小与动画偏好存在 `localStorage` 的 `dsh-persona-switcher:mascot-shown` / `:mascot-size` / `:mascot-motion`，位置存在 `:mascot-pos`（仅本机、不上传）。
 - `announceRoleChange: true`（默认）时，切换后往该会话注入一条 `<system-reminder>Role change: …` 用户消息——它是**真实会话消息**，所以会出现在该会话的记录里，这是刻意的（见「配置项」）。**每一次人设变更都会发**：角色 → 角色、部署人设 → 角色、角色 → `/role none` 回到部署人设、以及被记住的角色从库里消失后改由别的角色接手，四种方向各有一条对应的声明；只有「本会话原本就是这个角色」的自动恢复保持安静，因为那不是变更（见「配置项」）。
 
@@ -419,6 +429,15 @@ plus **import / replace / clear** artwork per role). Its left-nav entry gets its
 are plain Markdown on your disk; the plugin never uploads anything, never touches any session from the
 browser side, and never changes which tools the model can call. Switching a live session is `/role`'s
 job.
+
+The composer also has a **Persona** button after permissions / `dsh-meme` and before the
+model selector. Its label is **Persona** when unbound, otherwise the active role's name (or ID
+if unnamed), including restored bindings and subsequent `/role` changes. Long labels truncate
+with a full-name tooltip. It searches local names, IDs and descriptions and dispatches the same
+`/role` command to that composer's session, preserving drafts and restart persistence. **Add persona**
+opens the existing settings library editor with the first unused `char001`, `char002`, … ID
+pre-filled and editable. An unfinished settings edit is preserved. The button occupies its own
+native list-slot entry, so other plugins keep their controls.
 
 **On-screen mascot.** Import artwork for a role and the role of the session you are looking at appears
 as a draggable mascot — draggable anywhere, and it stays where you put it (no edge snapping). It shows

@@ -39,6 +39,10 @@ npm run verify
 # 3. behaviour: registration, slot injection, role CRUD
 npm test
 
+# Browser regression for the composer (isolated fixture, no live DSH account)
+npx playwright install chromium
+npm run test:browser
+
 # 4. real app: replace the installed copy and restart DSH
 ```
 
@@ -102,6 +106,24 @@ Styling goes into the `STYLE_TEXT` stylesheet in the same file. Every selector
 is anchored to `.dsh-panel.ps-page` and every class is `ps-`prefixed so the
 plugin cannot leak styles into the host UI. Theme values are read from the host
 CSS variables with fallbacks — use those rather than hard-coded colours.
+
+The composer lives in `src/client/composer-picker.jsx`, registered as the independent
+`persona-switcher-picker` cell of `conversation.input.left` (`order: 10`, after
+`dsh-meme`'s `order: 5`). Its stylesheet is scoped to `ps-composer-*` and removed
+on disposal; its menu uses a portal to avoid composer clipping. Session IDs come
+from the slot's injection, not a global active-session lookup. The command picker
+and composer share the options loader and `/role` dispatch in `role-picker.js`.
+
+Settings navigation is a guarded compatibility seam: the active `sidebar.settings`
+entry's shared store returns the shell's existing instance, whose `openSection`
+action opens `persona-switcher`. Do not call exclusive store factories or replace
+the shell entry. If this face changes, show the manual settings path instead.
+
+`npm run test:browser` runs the committed client bundle with real React and the SDK's
+SlotCore against local fixture services. It does not start DSH or send model requests.
+Set `PLAYWRIGHT_CHANNEL=msedge` to use an installed Edge instead of downloaded Chromium;
+set `PERSONA_SCREENSHOT_DIR` to save a review screenshot outside the repository.
+See [composer compatibility notes](docs/composer-compatibility.md) for the checked host contract.
 
 ## Pull requests
 

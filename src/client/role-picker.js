@@ -47,15 +47,25 @@ const describeRole = (role, current, t) => {
  * @param api - the role-library API caller.
  * @returns the role id in force, or null for the deployment persona.
  */
-const loadLiveRole = async (sessionId, api) => {
+const loadLiveRole = async (sessionId, api, strict = false) => {
   if (typeof sessionId !== 'string' || sessionId === '') return null
   try {
     const payload = await api('GET', `/session?session=${encodeURIComponent(sessionId)}`)
-    const live = payload?.liveRoleId ?? payload?.roleId
+    const live = payload && Object.hasOwn(payload, 'liveRoleId') ? payload.liveRoleId : payload?.roleId
     return typeof live === 'string' && live !== '' ? live : null
-  } catch {
+  } catch (error) {
+    if (strict) throw error
     return null
   }
+}
+
+/** Read the authoritative label without letting a transient failure mean "none". */
+export const loadRoleLabel = async (sessionId, api) => {
+  const id = await loadLiveRole(sessionId, api, true)
+  if (id === null) return null
+  const payload = await api('GET', `/role?id=${encodeURIComponent(id)}`)
+  const name = payload?.role?.name
+  return typeof name === 'string' && name.trim() !== '' ? name : id
 }
 
 /**
@@ -64,7 +74,7 @@ const loadLiveRole = async (sessionId, api) => {
  * @param deps - `{ api, t }`.
  * @returns `none` first, then the library in its own order.
  */
-const loadOptions = async (session, { api, t }) => {
+export const loadOptions = async (session, { api, t }) => {
   const live = await loadLiveRole(session?.sessionId, api)
   const payload = await api('GET', '/roles')
   const catalogue = Array.isArray(payload?.roles) ? payload.roles : []
@@ -81,7 +91,7 @@ const loadOptions = async (session, { api, t }) => {
         id: role.id,
         // The role's display name is what a human recognises; the id stays in
         // the detail line so typing either one finds the row.
-        label: typeof role.name === 'string' && role.name !== '' ? role.name : role.id,
+        label: typeof role.name === 'string' && role.name.trim() !== '' ? role.name : role.id,
         detail: describeRole(role, role.id === live, t),
         active: role.id === live
       }))
@@ -94,7 +104,7 @@ const loadOptions = async (session, { api, t }) => {
  * @param session - the popup's session.
  * @param deps - `{ sessions }`.
  */
-const selectRole = async (option, session, { sessions }) => {
+export const selectRole = async (option, session, { sessions }) => {
   const sessionId = session?.sessionId
   const face = sessions?.binding?.(sessionId)?.session ?? session
   if (typeof face?.command !== 'function') {
