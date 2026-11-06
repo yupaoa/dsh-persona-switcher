@@ -11,6 +11,8 @@ DeepSeek Harness 的人设切换插件：把一个角色的性格、语气、称
 
 <img src="docs/images/settings-general-top.webp" alt="设置 → 人设切换：常规标签页上半部分（版本号、GitHub 与问题反馈入口、默认角色、role_probe 开关）" width="780">
 
+[English](README.en.md) · **中文**
+
 > **环境要求**：DSH `>= 0.2.0-rc.1`。每个版本改了什么，见 [CHANGELOG.md](CHANGELOG.md)。
 
 **这份说明分两半**：前半讲**怎么用**，完全不需要懂编程；后半讲**原理、权限、安装卸载**，
@@ -53,7 +55,7 @@ DSH 本来就有一个人设：它告诉模型「你是谁、说话是什么风�
 - ⭐ **默认角色**：设好以后，新对话自动就是它，不用每次手动切。
 - 🧠 **重启还记得**：DSH 完全关掉再打开，这个对话还记得自己是谁。
 - 🐳 **屏幕吉祥物**：给角色配一张立绘，它会站到界面上，能拖着走、能调大小、换人时还会翻个面。
-- 🩺 **自查工具**（可选）：给爱折腾的人，让模型自己能说清「我现在是谁、我有哪些工具」。
+- 🩺 **自查工具**（可选）：让模型自己说清这个对话绑的是哪个人设、还有哪些可选、切换有没有改动别的配置。
 
 ## 设置页导览
 
@@ -440,57 +442,3 @@ dsh plugin add --profile desktop "file:D:\path\to\dsh-persona-switcher"
 ## 许可证
 
 [MIT](LICENSE) © 2026 yupaoa
-
----
-
-## English
-
-**Mid-session persona switching for DeepSeek Harness.** Give a conversation a role — its tone,
-its way of addressing you, its personality — without touching its tools, skills, or model.
-
-```bash
-# install (then fully restart DSH)
-dsh plugin add --profile desktop dsh-persona-switcher
-# or straight from GitHub (the build artifact is committed, no build step needed)
-dsh plugin add --profile desktop "github:yupaoa/dsh-persona-switcher"
-```
-
-Drop one role per file in `$DSH_HOME/roles` (`~/.dsh/roles` by default), or create one in
-**Settings → Persona Switcher → Role library**:
-
-```markdown
----
-id: whale-girl
-name: Whale Girl
-description: A gentle, efficient whale persona
----
-
-You are Whale Girl. Speak warmly and concisely...
-```
-
-Then switch, either from the **Persona** button under the composer or with the command:
-
-```text
-/role                      show this session's role and the role list
-/role whale-girl           switch this session to that persona
-/role none                 drop the role and install the explicit no-role section
-/role default whale-girl   make it the default for new sessions
-```
-
-The settings page has two tabs: **General** (the `defaultRole` for new sessions, the `role_probe`
-diagnostic toggle, the composer persona button, and the on-screen mascot — master switch, 0.5×–2.5×
-size, three-way switch animation, position reset) and **Role library** (list / create / edit / delete
-roles, with per-role **import / replace / clear** artwork).
-
-A role is applied as a prompt section of this plugin's own — `persona-switcher:persona`, registered
-in that session's scope right after the deployment persona prefix, the same mechanism the bundled
-`dsh-subagent` uses. The deployment's identity line is never shadowed. Nothing about the session's
-plugin composition, tools, commands, skills or model is touched. A switch is remembered in
-`$DSH_HOME/persona-switcher/sessions.json`, so a session keeps its persona across a full DSH restart
-(it is re-applied while the agent is created, so it is in the prompt of that session's very first step).
-
-Six write locations on disk, nothing else — no network egress, no uploads, no credential reads; the
-only network surface is an inbound prefix route on the host's existing loopback webServer. The
-Chinese sections above (原理 / 权限边界 / 安装 / 配置项 / 开发) are the full reference.
-
-Requires DSH `>= 0.2.0-rc.1`. [MIT](LICENSE) © 2026 yupaoa.

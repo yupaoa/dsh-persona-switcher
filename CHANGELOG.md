@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   由 `scripts/build-client.mjs` 在构建时注入，因此它永远是正在运行的那个 bundle 的版本，
   而不是请求发生时 `package.json` 恰好写着什么）。角色数移到「角色库」标签页里
   「角色库」卡片的标题旁。
+- README 拆成两份同构的文档：`README.md` 中文、`README.en.md` 英文，顶部一行互链（同
+  `dsh-mycost` 的做法）。原本塞在中文版末尾的英文摘要随之删除——两份结构独立才不会再漂。
+  另把「自查工具」那条从「我有哪些工具」改为它实际报告的内容：绑定了哪个人设、还有哪些
+  人设可选、切换有没有动过别的配置。
 - 设置页标题右侧新增 **GitHub** / **问题反馈** 两个按钮，分别打开仓库与 issue 列表
   （沿用宿主的 `outline` / `sm` 按钮规格与 `window.open(..., '_blank', 'noreferrer')`）；
   页面最底部新增一个「留个 Star」按钮，右端带一枚圆形头像——图片以 data URL 内联进
