@@ -601,6 +601,57 @@ try {
     assert.notEqual(await mascotOf('amiya'), null)
   })
 
+  await checkAsync('a failed map write does not poison every later upload', async () => {
+    // A directory on the map path makes `rm(file, { force: true })` refuse, so
+    // the write fails after the artwork file itself landed. That failure must
+    // stay inside its own attempt: the queue is shared, and a rejection left on
+    // it would replay the first error for every upload that follows, until a
+    // restart — the one state the map is supposed to survive.
+    await rm(mapFile, { force: true })
+    await mkdir(join(mapFile, 'occupied'), { recursive: true })
+    const failed = await call('POST', '/persona-switcher/mascot?role=amiya', {
+      image: asDataUrl(artwork.png, 'image/png'),
+      box: '256x256'
+    })
+    assert.equal(failed.status, 500, 'an upload whose map write fails must answer 500')
+
+    await rm(mapFile, { recursive: true, force: true })
+    const recovered = await call('POST', '/persona-switcher/mascot?role=amiya', {
+      image: asDataUrl(artwork.png, 'image/png'),
+      box: '256x256'
+    })
+    assert.equal(recovered.status, 200, 'the next upload must be attempted, not replayed')
+    assert.equal((await readMap()).amiya.box, '256x256', 'the recovered upload must reach disk')
+
+    const after = await call('POST', '/persona-switcher/mascot?role=amiya', {
+      image: asDataUrl(artwork.png, 'image/png'),
+      box: '200x200'
+    })
+    assert.equal(after.status, 200, 'the queue must stay healthy afterwards')
+    assert.equal((await readMap()).amiya.box, '200x200')
+  })
+
+  await checkAsync('a hand-edited map reaches the browser through the revision counter', async () => {
+    // The map is a plain JSON file a person may edit by hand. `/roles` is the
+    // route that re-reads it, and the revision counter is the only way the
+    // browser hears that anything changed — so a reload that changed the content
+    // has to move the counter, or the edit is in force on the host and still
+    // invisible on screen.
+    const map = await readMap()
+    assert.notEqual(map.amiya, undefined, 'this check needs a bound role')
+    const before = await revisionNow()
+    await writeFile(
+      mapFile,
+      `${JSON.stringify({ ...map, amiya: { ...map.amiya, box: '120x90' } }, null, 2)}\n`,
+      'utf8'
+    )
+
+    const roles = await rolesOf()
+    assert.equal(roles.find((role) => role.id === 'amiya')?.mascot?.box, '120x90', 'the edit must be served')
+    const after = await revisionNow()
+    assert.ok(after > before, `the revision must move when the map is reloaded (${before} -> ${after})`)
+  })
+
   await checkAsync('reading a role with no artwork writes nothing', async () => {
     const before = await readFile(mapFile, 'utf8')
     const { status } = await call('GET', '/persona-switcher/mascot?role=whale-girl')
@@ -856,6 +907,34 @@ try {
     )
     await new Promise((resolve) => setTimeout(resolve, 10))
     assert.deepEqual(sendJsonProbe, [200], `answered ${sendJsonProbe.length} time(s)`)
+  })
+  await checkAsync('the role library bounds the persona and refuses a silent overwrite', async () => {
+    const id = 'probe-created'
+    const role = { id, name: 'Probe', description: '', persona: 'You are a probe.' }
+
+    const oversized = await call('POST', '/persona-switcher/role', {
+      ...role,
+      id: 'probe-huge',
+      persona: 'x'.repeat(16001)
+    })
+    assert.equal(oversized.status, 400, 'an unbounded persona must be refused before it is written')
+    assert.match(oversized.value?.error ?? '', /too long/, 'the refusal must name the limit')
+
+    const created = await call('POST', '/persona-switcher/role', { ...role, createOnly: true })
+    assert.equal(created.status, 200, `a new role must be written, got ${JSON.stringify(created.value)}`)
+
+    const duplicate = await call('POST', '/persona-switcher/role', { ...role, createOnly: true, persona: 'other' })
+    assert.equal(duplicate.status, 409, 'a create must not overwrite a role the caller never saw')
+    const untouched = (await rolesOf()).find((entry) => entry.id === id)
+    assert.equal(untouched?.persona, role.persona, 'the refused write must leave the role as it was')
+
+    const edited = await call('POST', '/persona-switcher/role', { ...role, name: 'Probe 2' })
+    assert.equal(edited.status, 200, 'an edit is still allowed to overwrite')
+    const landed = (await rolesOf()).find((entry) => entry.id === id)
+    assert.equal(landed?.name, 'Probe 2', 'the edit must reach the library')
+
+    const cleaned = await call('DELETE', `/persona-switcher/role?id=${encodeURIComponent(id)}`)
+    assert.equal(cleaned.status, 200, 'the probe role must be removable again')
   })
 } finally {
   await new Promise((resolve) => server.close(resolve))

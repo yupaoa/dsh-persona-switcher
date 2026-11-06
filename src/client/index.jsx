@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { createElement, useEffect } from 'react'
 import {
   Button,
   SettingsForm,
@@ -305,7 +305,9 @@ class PersonaSwitcherCardController {
           throw new Error(this.t('roleIdExists'))
         }
       }
-      await api('POST', '/role', this.editing)
+      // A new role is created with `createOnly`, so the library — not this
+      // form's snapshot — is the authority on whether the id is taken.
+      await api('POST', '/role', this.editingNew ? { ...this.editing, createOnly: true } : this.editing)
       this.editing = null
       this.editingNew = false
       await this.load()
@@ -529,6 +531,35 @@ const initialOf = (role) => {
  * only descendants of the page root plus two host-chrome tweaks scoped to
  * this page (`.ps-form` footer, danger buttons inside `.ps-card`).
  */
+/** Where this plugin lives; the header links out to both. */
+const REPO_URL = 'https://github.com/yupaoa/dsh-persona-switcher'
+const ISSUES_URL = `${REPO_URL}/issues`
+
+/** The GitHub mark, sized the way the shell's outline buttons expect. */
+const RepoIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+    <path d="M8 .2a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38l-.01-1.49c-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.46.55.38A8.01 8.01 0 0 0 8 .2Z" />
+  </svg>
+)
+
+/** An "opens elsewhere" glyph for the feedback link. */
+const FeedbackIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 16 16"
+    aria-hidden="true"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M6.8 3.5H3.6a1 1 0 0 0-1 1v7.9a1 1 0 0 0 1 1h7.9a1 1 0 0 0 1-1V9.2" />
+    <path d="M9.8 2.2h4v4M13.6 2.4 7.9 8.1" />
+  </svg>
+)
+
 const STYLE_ID = 'persona-switcher-settings-style'
 const STYLE_TEXT = `
 .dsh-panel.ps-page {
@@ -588,6 +619,19 @@ const STYLE_TEXT = `
   color: var(--ps-ink-2);
   background: var(--ps-surface-2);
   border: 1px solid var(--ps-border-soft);
+}
+.dsh-panel.ps-page .ps-head__version {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ps-ink-3);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.dsh-panel.ps-page .ps-head__links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
 }
 .dsh-panel.ps-page .ps-head__sub {
   margin: 5px 0 0;
@@ -673,6 +717,11 @@ const STYLE_TEXT = `
   border: 1px solid var(--ps-border);
   border-radius: var(--ps-radius);
   overflow: hidden;
+}
+.dsh-panel.ps-page .ps-card__titlerow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .dsh-panel.ps-page .ps-card__head {
   display: flex;
@@ -1123,7 +1172,16 @@ const STYLE_TEXT = `
  */
 const installStyle = () => {
   if (typeof document === 'undefined' || document.head === null) return
-  if (document.getElementById(STYLE_ID) !== null) return
+  const existing = document.getElementById(STYLE_ID)
+  if (existing !== null) {
+    // A client-plugin update hot-reloads this module without reloading the page.
+    // Returning early on "a tag with this id exists" therefore leaves the
+    // PREVIOUS build's rules styling the new markup — which is how the role
+    // count pill ended up under its heading instead of beside it. Replacing the
+    // text keeps the tag count at one and the rules matching this build.
+    if (existing.textContent !== STYLE_TEXT) existing.textContent = STYLE_TEXT
+    return
+  }
   const style = document.createElement('style')
   style.id = STYLE_ID
   style.textContent = STYLE_TEXT
@@ -1131,20 +1189,20 @@ const installStyle = () => {
 }
 
 /* ── Settings-nav icon ────────────────────────────────────────────────────
- * The shell's settings nav hard-codes `navIcon(id)` and hands unknown
- * sections the fallback gear (persona-switcher collides with 通用设置), so,
- * like the wallpaper engine does, the icon is patched into the DOM: find the
- * nav button whose label text equals ours, then swap its first element child
- * for a span carrying the same class (inheriting the shell's layout) and our
- * SVG. Geometry is one table; the string renderer walks it.
+ * The shell's settings nav renders the `settings.section.icon` slot — a root,
+ * inline list slot keyed by section id — and falls back to its own glyph (a
+ * plain gear for ids it does not know) when nothing matches. Contributing the
+ * mark there is the documented way to brand a section; this file used to patch
+ * the nav DOM instead, which depended on the shell's markup and inherited its
+ * fallback gear whenever that markup shifted.
  *
  * Design: a theater mask (flat top, U chin, two dot eyes, a smile) on the
  * 16px grid — the plugin's own face, unique in a sidebar of glyphs. Stroke
  * 1.4 matches the official OutlineMedium weight at 16px (thinner reads
  * weak, fatter reads blurry).
  *
- * Failure semantics: structure changed / button not found ⇒ keep the official
- * gear; never throw, never retry. Returns a disposer, or null when not armed.
+ * The slot passes `size` (pixels) and `active`; the shell already tints the
+ * mark through `currentColor`, so only `size` is read.
  */
 const PS_ICON_VIEWBOX = '0 0 16 16'
 const PS_ICON_PARTS = [
@@ -1154,91 +1212,23 @@ const PS_ICON_PARTS = [
   ['path', { d: 'M6.2 10.1q1.8 1.6 3.6 0' }]
 ]
 
-/** String version of the icon, for the DOM patch's innerHTML. */
-const psIconSvgString = (size) => {
-  const attrs =
-    `viewBox="${PS_ICON_VIEWBOX}" width="${size}" height="${size}" fill="none" stroke="currentColor"` +
-    ' stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"'
-  const inner = PS_ICON_PARTS.map(
-    ([tag, props]) =>
-      `<${tag} ${Object.keys(props)
-        .map((key) => `${key}="${props[key]}"`)
-        .join(' ')}/>`
-  ).join('')
-  return `<svg ${attrs}>${inner}</svg>`
-}
-
-/**
- * Patch our icon into the settings nav. The nav is a body portal, so a
- * childList observer on `document.body` sees it mount; the WeakSet keeps the
- * pass idempotent, and the `data-ps-nav-icon` marker survives React
- * re-renders that keep the button node.
- * @param t - the bound dictionary (label read fresh, so it tracks locale).
- * @returns the disposer, or null when the DOM is unavailable.
- */
-const installPersonaNavIcon = (t) => {
-  if (typeof document === 'undefined' || document.body === null) return null
-  if (typeof MutationObserver !== 'function') return null
-  const patched = new WeakSet()
-  const patchIn = (root) => {
-    if (!root || typeof root.querySelectorAll !== 'function') return
-    let buttons = []
-    try {
-      buttons = root.querySelectorAll('nav button')
-    } catch {
-      return
-    }
-    const want = t('nav')
-    for (const btn of buttons) {
-      try {
-        if (patched.has(btn)) continue
-        if ((btn.textContent || '').trim() !== want) continue
-        const iconEl = btn.firstElementChild
-        // Unexpected structure (no separate icon element) ⇒ keep the gear.
-        if (!iconEl || (iconEl === btn.lastElementChild && btn.childElementCount < 2)) continue
-        // Already ours (re-run after a re-render) ⇒ register, don't restack.
-        if (iconEl.getAttribute('data-ps-nav-icon') === '1') {
-          patched.add(btn)
-          continue
-        }
-        // Copy the live class of THAT element (hash names drift per build)
-        // so the span inherits the shell's size/flex constraints. SVG
-        // elements expose className as SVGAnimatedString — read `class`.
-        const rawClass = iconEl.className
-        const span = document.createElement('span')
-        span.className =
-          typeof rawClass === 'string' ? rawClass : iconEl.getAttribute('class') || ''
-        span.setAttribute('data-ps-nav-icon', '1')
-        span.innerHTML = psIconSvgString(16)
-        btn.replaceChild(span, iconEl)
-        patched.add(btn)
-      } catch {
-        // One odd button must not affect the others.
-      }
-    }
-  }
-  // Dialog may already be open (bundle re-execution): patch the current DOM.
-  patchIn(document.body)
-  const observer = new MutationObserver((records) => {
-    for (const record of records) {
-      for (const node of record.addedNodes) {
-        if (node && node.nodeType === 1) patchIn(node)
-      }
-    }
-  })
-  try {
-    observer.observe(document.body, { childList: true })
-  } catch {
-    return null
-  }
-  return () => {
-    try {
-      observer.disconnect()
-    } catch {
-      /* ignore */
-    }
-  }
-}
+/** The settings-nav mark. Pure and DOM-free, so the harness can render it. */
+const PersonaNavIcon = ({ size = 16 }) => (
+  <svg
+    viewBox={PS_ICON_VIEWBOX}
+    width={size}
+    height={size}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+    focusable="false"
+  >
+    {PS_ICON_PARTS.map(([tag, props], index) => createElement(tag, { key: index, ...props }))}
+  </svg>
+)
 
 /**
  * The settings page section: a header, a two-tab switch, and either the
@@ -1324,12 +1314,19 @@ const PersonaSwitcherSection = (props) => {
   // file with no `name` used to throw right here — taking the whole settings
   // screen down over one malformed file.
   const nameInvalid = editing === null || String(editing.name ?? '').trim() === ''
+  /** The build that produced this bundle; injected by `scripts/build-client.mjs`. */
+  const pluginVersion = typeof __PS_VERSION__ === 'undefined' ? '' : __PS_VERSION__
 
   const roleLibrary = (
     <section className="ps-card">
       <div className="ps-card__head">
         <div>
-          <h3>{t('library')}</h3>
+          <div className="ps-card__titlerow">
+            <h3>{t('library')}</h3>
+            <span className="ps-head__count" title={t('countRoles')}>
+              {roles.length}
+            </span>
+          </div>
           <p>{t('libraryHint')}</p>
         </div>
         <Button variant="primary" size="sm" disabled={busy} onClick={() => controller.edit(null)}>
@@ -1549,13 +1546,34 @@ const PersonaSwitcherSection = (props) => {
         <div>
           <div className="ps-head__titlerow">
             <h2 className="ps-head__title">{t('nav')}</h2>
-            <span className="ps-head__count" title={t('countRoles')}>
-              {roles.length}
-            </span>
+            {pluginVersion !== '' && (
+              <span className="ps-head__version" title={`${t('versionLabel')} ${pluginVersion}`}>
+                v{pluginVersion}
+              </span>
+            )}
+            <div className="ps-head__links">
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label={t('repo')}
+                icon={<RepoIcon />}
+                onClick={() => window.open(REPO_URL, '_blank', 'noreferrer')}
+              >
+                {t('repo')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label={t('issues')}
+                icon={<FeedbackIcon />}
+                onClick={() => window.open(ISSUES_URL, '_blank', 'noreferrer')}
+              >
+                {t('issues')}
+              </Button>
+            </div>
           </div>
           <p className="ps-head__sub">{t('subtitle')}</p>
         </div>
-        <p className="ps-head__meta">{t('pageMeta')}</p>
       </header>
 
       <div className="ps-tabs" role="tablist" aria-label={t('nav')}>
@@ -1762,7 +1780,6 @@ export function apply(ctx) {
   // The picker needs the dictionaries above, so it is installed after them.
   installRolePicker(ctx, { api, t })
   installStyle()
-  ctx.effect(() => installPersonaNavIcon(t) || undefined, 'persona-switcher: nav icon')
   // The mascot rides in this same bundle: the loader allows exactly one factory
   // per package (a second entry point is fatal), so it is imported and installed
   // here rather than built as its own bundle.
@@ -1787,6 +1804,17 @@ export function apply(ctx) {
       PersonaSwitcherSection
     )
   )
+  // The nav mark rides the documented slot, keyed by the SAME id as the section
+  // above so the shell renders it in place of its fallback glyph, and only while
+  // that section is on the ledger. Hosts older than the slot simply keep the
+  // shell's glyph: a missing icon must never take the settings page down.
+  try {
+    ctx.slots.inject('settings.section.icon', () =>
+      ctx.slots.register({ name: 'settings.section.icon', id: 'persona-switcher' }, PersonaNavIcon)
+    )
+  } catch {
+    /* pre-icon host: the shell's own glyph stays */
+  }
 }
 
 const zh = {
@@ -1798,7 +1826,9 @@ const zh = {
   roleIdExists: '这个 ID 已存在，请换一个 ID；编辑已有角色请从角色库打开。',
   nav: '人设切换',
   subtitle: '新会话的默认人设，以及可切换角色的集中管理。',
-  pageMeta: '默认人设 · 角色库 · role_probe 工具',
+  repo: 'GitHub',
+  issues: '问题反馈',
+  versionLabel: '插件版本',
   countRoles: '角色数',
   tabGeneral: '常规',
   tabLibrary: '角色库',
@@ -1808,7 +1838,7 @@ const zh = {
   toolCard: '模型工具',
   exposeTool: '暴露 role_probe 工具',
   exposeToolHint:
-    '开启后，模型可通过 role_probe 查看当前绑定角色、可用角色列表与已注册指令；关闭后该工具不再提供。',
+    '开启后，模型可通过 role_probe 工具查看当前绑定角色、可用角色列表与已注册指令。你可以让模型自查当前会话状态。',
   library: '角色库',
   libraryHint: '角色保存在服务端 roles-dir 指向的目录；此处编辑立即生效。',
   loading: '正在读取角色库…',
@@ -1882,7 +1912,9 @@ const en = {
   roleIdExists: 'This ID already exists. Choose another ID, or edit the existing role from the library.',
   nav: 'Persona Switcher',
   subtitle: 'The default persona for new sessions, plus one place for every switchable role.',
-  pageMeta: 'Default persona · role library · role_probe tool',
+  repo: 'GitHub',
+  issues: 'Feedback',
+  versionLabel: 'Plugin version',
   countRoles: 'Roles',
   tabGeneral: 'General',
   tabLibrary: 'Role library',
@@ -1892,7 +1924,7 @@ const en = {
   toolCard: 'Model tooling',
   exposeTool: 'Expose the role_probe tool',
   exposeToolHint:
-    'When on, the model can read the bound role, the available roles and the registered commands through role_probe; when off the tool is not provided.',
+    'When on, the model can read the bound role, the available roles and the registered commands through the role_probe tool. You can ask the model to report this session’s state.',
   library: 'Role library',
   libraryHint: 'Roles live under the server roles-dir; edits apply immediately.',
   loading: 'Loading the role library…',

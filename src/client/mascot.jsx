@@ -636,7 +636,14 @@ const STYLE_TEXT = `
  */
 const installStyle = () => {
   if (!hasDom() || document.head === null) return
-  if (document.getElementById(STYLE_ID) !== null) return
+  const existing = document.getElementById(STYLE_ID)
+  if (existing !== null) {
+    // Same reason as the settings stylesheet: a hot-reloaded client keeps this
+    // module's DOM but not its CSS, so an early return would leave the previous
+    // build's rules in place.
+    if (existing.textContent !== STYLE_TEXT) existing.textContent = STYLE_TEXT
+    return
+  }
   const style = document.createElement('style')
   style.id = STYLE_ID
   style.textContent = STYLE_TEXT

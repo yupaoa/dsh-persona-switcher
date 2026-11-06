@@ -455,6 +455,25 @@ if (entry.name !== 'settings.section') throw new Error('register name mismatch')
 if (entry.id !== 'persona-switcher') throw new Error('register id mismatch')
 if (entry.label() !== '人设切换') throw new Error('register label mismatch')
 
+// The nav mark is a `settings.section.icon` contribution keyed by the SAME id;
+// that match is what makes the shell drop its fallback gear for this section.
+const iconSlot = registered.find((r) => r.slotName === 'settings.section.icon')
+if (iconSlot === undefined) throw new Error('settings.section.icon not injected')
+const iconEntry = iconSlot.registerFn()
+if (iconEntry?.name !== 'settings.section.icon') throw new Error('icon register name mismatch')
+if (iconEntry.id !== entry.id) throw new Error('the nav icon must reuse the section id')
+const iconRecord = sectionEntries.find((e) => e.name === 'settings.section.icon')
+if (typeof iconRecord?.component !== 'function') throw new Error('icon entry carries no component')
+const iconElement = iconRecord.component({ size: 16 })
+if (iconElement?.type !== 'svg') throw new Error('the nav icon must render an <svg>')
+if (iconElement.props?.width !== 16 || iconElement.props?.height !== 16) {
+  throw new Error('the nav icon must honour the slot size')
+}
+if (iconElement.props?.['aria-hidden'] !== 'true') {
+  throw new Error('the nav icon must stay out of the accessibility tree')
+}
+console.log('nav icon: settings.section.icon ok')
+
 const injected = entry.inject()
 // The composer adds its own list cell; it must not claim another plugin's cell.
 const composer = registered.find((r) => r.slotName === 'conversation.input.left')?.registerFn()

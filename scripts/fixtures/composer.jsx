@@ -82,7 +82,8 @@ const actions = { openSection: (id) => {
 } }
 const shellInstance = { actions }
 core.register({ name: 'sidebar.settings', store: { create: () => shellInstance }, children: {
-  'settings.section': { kind: 'list', scope: 'root' }
+  'settings.section': { kind: 'list', scope: 'root' },
+  'settings.section.icon': { kind: 'list', scope: 'root', inline: true }
 } }, () => null)
 const slots = {
   entriesOfSlot: (name) => core.entriesOfSlot(name),

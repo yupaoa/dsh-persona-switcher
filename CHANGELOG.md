@@ -4,7 +4,45 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-11-06
+
+### Fixed
+
+- 会话记忆与会话立绘的写盘队列在**一次失败后永久失效**：队列尾接的是上一次尝试的
+  promise，一旦某次写入被拒（Windows 上最典型的是目标路径被占用 / 杀毒软件持有），
+  后续每次写入都直接重放**第一次的旧错误**，连障碍已经消失也不会再尝试，直到重启 DSH。
+  现在失败只属于那一次尝试，队列尾部吞掉拒绝、调用方仍收到错误。
+  两条链路都补了回归测试（失败一次 → 排除障碍 → 下一次写入必须真的落盘）。
+- 手改 `mascot-map.json` 后画面不更新：`GET /roles` 会重新读盘，但重载后没有推进
+  revision 计数器，浏览器唯一能听到"立绘变了"的通道因此保持沉默。现在重载发现内容变化
+  就 bump。同时删掉从未被调用的 `refreshMascotMap`（按 `mtimeMs:size` 比较的方案已被
+  `/roles` 无条件重读取代，因为同毫秒编辑会被时间戳漏掉）及其残留的 `mascotMapStamp`。
+- 「暴露 role_probe 工具」开关关掉后不生效，直到重启 DSH：该字段是 volatile，宿主把新值
+  直接提交进正在运行的 fiber、**不重挂插件**，只在属主 fiber 上派发 `loader/volatile-update`，
+  而注册代码只在 `apply` 时读一次值。现在监听该事件，开/关立即重挂，无关字段的变更不会误伤。
+- `POST /role` 的 `persona` 原先没有长度上限（只受 1 MiB body 约束），且撞 id 会**静默覆盖**
+  已有角色——设置页的存在性检查基于打开页面时的快照，第二个标签页或任何其它客户端都能覆盖
+  它没见过的角色。现在 persona 超过 16000 字符返回 400；新增角色时客户端带 `createOnly: true`，
+  宿主发现磁盘上已有同 id 则返回 409，编辑路径不受影响。
+- `/role none` 的会话**每一步**都整库重扫：扫描条件只排除了"以有人设"，没排除"明确选择无人设"，
+  而 `planRestore` 对这种会话在咨询 `has()` 之前就返回 idle。现在不再扫描。
+
+### Changed
+
+- 设置页标题「人设切换」旁的角标不再显示角色数，改为显示**当前插件的版本号**（小字，
+  由 `scripts/build-client.mjs` 在构建时注入，因此它永远是正在运行的那个 bundle 的版本，
+  而不是请求发生时 `package.json` 恰好写着什么）。角色数移到「角色库」标签页里
+  「角色库」卡片的标题旁。
+- `peerDependencies` 的 `@deepseek-ai/dsh-tools` 区间补上 `^0.2.2-rc.1`：原区间在纯
+  semver 语义下不含 `0.2.2-rc.1`（预发布只在同 tuple 下参与比较），DSH 因优先使用
+  `engines.dsh` 而忽略 peer，但声明本身应当覆盖实际验证过的版本。
+- `docs/composer-compatibility.md` 补充 0.2.2-rc.1 的复核记录。
+
+### Changed（既有条目）
+
+- 设置页左栏的导航图标改为注册在官方的 `settings.section.icon` 槽位（与 `settings.section` 同一
+  id：`persona-switcher`），由宿主按 `size` / `active` 渲染；不再用 `MutationObserver` 查找导航
+  按钮、替换其子节点的 DOM 改写方式。宿主未声明该槽位时保留宿主自带字形，不报错、不影响设置页。
 
 ## [0.3.4] - 2026-10-29
 

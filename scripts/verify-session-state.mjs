@@ -24,7 +24,7 @@
  * Exits non-zero on the first class of problem found.
  */
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -87,6 +87,28 @@ await check('re-remembering the same role does not rewrite the file', async () =
 
 await check('no temporary file survives a write', async () => {
   assert.deepEqual(await readdir(join(dir, 'persona-switcher')), ['sessions.json'])
+})
+
+await check('a failed write does not poison every later save', async () => {
+  // A directory sitting on the destination path makes the atomic write fail at
+  // `rm(file, { force: true })`. That failure must belong to this one attempt:
+  // the queue is shared, so a rejection left on it would fail every later save
+  // with the first error and the store could never recover in-process.
+  const trapped = join(dir, 'trapped', 'sessions.json')
+  await mkdir(join(trapped, 'occupied'), { recursive: true })
+  const store = createSessionState({ file: trapped })
+  await assert.rejects(store.set('session-a', 'whale-girl'), 'a save onto a directory must fail')
+
+  await rm(trapped, { recursive: true, force: true })
+  assert.equal(await store.set('session-b', 'whale-girl'), true, 'the next save must be attempted')
+  const raw = JSON.parse(await readFile(trapped, 'utf8'))
+  assert.equal(raw.sessions['session-b'].role, 'whale-girl', 'the recovered save must reach disk')
+
+  // And it stays healthy afterwards, including the no-op path.
+  assert.equal(await store.set('session-b', 'whale-girl'), false)
+  assert.equal(await store.remove('session-b'), true)
+  const after = JSON.parse(await readFile(trapped, 'utf8')).sessions
+  assert.equal(after['session-b'], undefined, 'the removal must reach disk too')
 })
 
 await check('clearing a session drops it from the file', async () => {

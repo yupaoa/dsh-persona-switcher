@@ -51,7 +51,7 @@ DeepSeek Harness 的人设切换插件：把一个角色的**人设与语言风�
   竖轴转 180°（约 1 秒，不抬起、不加阴影）。「切换动画」有三档：**跟随系统**（默认，尊重系统
   的「减少动画」偏好）/ **始终开** / **始终关**——所以系统关了动画的机器也能单独让吉祥物翻起来，
   不需要改系统级开关。
-- 🧭 **专属导航图标**：设置页左栏里它带着自己的面具图标。
+- 🧭 **专属导航图标**：设置页左栏里它带着自己的面具图标（通过官方 `settings.section.icon` 槽位贡献，不改写宿主 DOM）。
 - 🔍 **`role_probe` 诊断工具**：一条命令看清当前绑定、系统节点、工具清单（可关闭）。
 - 🔒 **只动该动的**：不声明任何角色级工具、技能或模型——切换人设不会顺带放权。
 
@@ -322,7 +322,8 @@ prompt registry 每一步重新组装系统节点并发出 `system-prompt/change
 不受影响。没有这个段落时，模型会把角色目录当成可选身份列表，自己挑一个来扮演（实测挑中过
 `whale-girl`）；现在目录被明确标成「菜单，不是当前身份」。
 整条路径只碰 prompt 输入，会话的插件组合、工具、命令、技能、模型一概不动。浏览器侧只做两件事：
-注入设置页 section，以及给左栏换上自己的图标。
+注入设置页 section（`settings.section`，order 15），以及用官方的 `settings.section.icon` 槽位
+贡献自己的导航图标——同一个 id，不改写宿主导航的 DOM。
 
 ## 兼容性
 
@@ -432,7 +433,9 @@ Then, inside a session:
 There is also a **Settings → Persona Switcher** page, in two tabs: **General** (edit the
 `defaultRole` used by new sessions, toggle the `role_probe` diagnostic tool, and control the on-screen
 mascot) and **Role library** (list / create / edit / delete role files, with a delete confirmation,
-plus **import / replace / clear** artwork per role). Its left-nav entry gets its own mask icon. Roles
+plus **import / replace / clear** artwork per role). Its left-nav entry gets its own mask icon,
+contributed through the official `settings.section.icon` slot rather than by rewriting the shell's
+nav DOM. Roles
 are plain Markdown on your disk; the plugin never uploads anything, never touches any session from the
 browser side, and never changes which tools the model can call. Switching a live session is `/role`'s
 job.

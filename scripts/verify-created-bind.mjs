@@ -132,6 +132,8 @@ const fakeHost = (liveAgents = []) => {
     infos: [],
     systemSections: [],
     commands: [],
+    tools: [],
+    toolWithdrawals: 0,
     liveAgents,
     ctx: {
       logger: {
@@ -153,7 +155,12 @@ const fakeHost = (liveAgents = []) => {
           let step = value.next()
           while (step.done !== true) step = value.next()
         }
-        return () => {}
+        // The row withdraws a registration by calling what `effect` returned, so
+        // this cannot be a no-op: a stub that swallows it would make every
+        // "the tool is gone" assertion pass while nothing was withdrawn.
+        return () => {
+          if (typeof value === 'function') value()
+        }
       },
       inject(names, run) {
         if (names.includes('agents')) run({ agents: { list: () => liveAgents } })
@@ -172,7 +179,14 @@ const fakeHost = (liveAgents = []) => {
           return () => {}
         }
       },
-      tools: { register: () => () => {} }
+      tools: {
+        register: (definition) => {
+          app.tools.push(definition)
+          return () => {
+            app.toolWithdrawals += 1
+          }
+        }
+      }
     }
   }
   app.fire = async (name, ...args) => {
@@ -350,9 +364,48 @@ await check('an agent that was already live when the row loaded is bound too', a
   assert.ok(app.systemSections.length >= 1, 'the row still publishes its own prompt section')
 })
 
+await check('the diagnostic tool follows the volatile switch without a restart', async () => {
+  let exposed = true
+  const { app } = await scenario({ config: { exposeTool: { get: () => exposed } } })
+  assert.equal(app.tools.length, 1, 'the tool must be registered while the switch is on')
+  assert.equal(app.tools[0]?.name, 'role_probe', 'the registered tool is the probe')
+
+  exposed = false
+  await app.fire('loader/volatile-update', [['exposeTool']])
+  assert.equal(app.toolWithdrawals, 1, 'turning the switch off must withdraw the tool at once')
+
+  await app.fire('loader/volatile-update', [['defaultRole']])
+  assert.equal(app.toolWithdrawals, 1, 'an unrelated volatile change must not churn the tool')
+
+  exposed = true
+  await app.fire('loader/volatile-update', [['exposeTool']])
+  assert.equal(app.tools.length, 2, 'turning it back on must register the tool again')
+})
+
+await check('an opted-out session does not rescan the role library every step', async () => {
+  const { app } = await scenario({ seed: { 'session-optout': null } })
+  const scans = () => app.infos.filter((line) => line.includes('role library')).length
+  const before = scans()
+  const agent = fakeAgent('session-optout')
+  for (const step of [1, 2, 3]) {
+    await app.fire(
+      'agent/pre-step',
+      { agent, messages: [], step, signal: undefined },
+      async () => ({ kind: 'continue', messages: [] })
+    )
+  }
+  assert.equal(scans(), before, 'an explicit opt-out is settled; the library must not be re-read per step')
+  // The row still speaks: a session with no role gets the "no persona" section
+  // on purpose, so the model does not answer as one of the catalogue. What it
+  // must NOT carry is a role's persona text.
+  const persona = agent.prompt.sections.get(PERSONA_SECTION)
+  assert.ok(typeof persona === 'string', 'the opted-out session still gets a persona section')
+  assert.ok(!persona.includes(ROLE_PERSONA), `the persona section must not carry a role: ${persona}`)
+})
+
 if (problems.length > 0) {
   console.error(`verify-created-bind: ${problems.length} check(s) failed`)
   for (const problem of problems) console.error(`  - ${problem}`)
   process.exit(1)
 }
-console.log('verify-created-bind: all 8 checks hold')
+console.log('verify-created-bind: all 10 checks hold')

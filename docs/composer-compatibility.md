@@ -2,6 +2,9 @@
 
 Validated on 2026-10-28 against the installed DSH **0.2.1-rc.3** source and
 installed **dsh-meme 0.1.64**, plus the locked SDK **0.2.0-rc.2** SlotCore.
+Re-checked on 2026-11-06 against **0.2.2-rc.1**: the slot names, the
+`session.command(line)` seam and the `commandUi.decorate()` contract recorded
+here still hold on that release.
 
 ## Native integration
 

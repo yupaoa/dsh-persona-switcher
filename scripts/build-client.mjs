@@ -61,6 +61,10 @@ await build({
     '@deepseek-ai/dsh-client-ui-primitives'
   ],
   outfile: tmp,
+  // The settings page shows the running build's version. Injecting it here keeps
+  // the number the page reports tied to the bundle that is actually loaded,
+  // rather than to whatever package.json says at the time of the request.
+  define: { __PS_VERSION__: JSON.stringify(pkg.version) },
   logLevel: 'info'
 })
 
