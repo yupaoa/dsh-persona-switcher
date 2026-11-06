@@ -8,6 +8,7 @@ import {
   settingsTextField
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { installMascot } from './mascot.jsx'
+import { STAR_AVATAR } from './star-avatar.js'
 import { installRolePicker } from './role-picker.js'
 import { installComposerPicker, nextRoleId } from './composer-picker.jsx'
 import {
@@ -626,6 +627,21 @@ const STYLE_TEXT = `
   color: var(--ps-ink-3);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
+}
+/* Sized in ems so it scales with the button's own font size. An absolute
+   "inset: 0" variant filled the frame only when the button happened to be the
+   positioned ancestor — it is not, so the picture escaped the pill. */
+.dsh-panel.ps-page .ps-foot__avatar {
+  width: 1.7em;
+  height: 1.7em;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-left: 3px;
+}
+.dsh-panel.ps-page .ps-foot {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0 6px;
 }
 .dsh-panel.ps-page .ps-head__links {
   display: flex;
@@ -1765,6 +1781,23 @@ const PersonaSwitcherSection = (props) => {
           {editor ?? roleLibrary}
         </div>
       )}
+
+      <div className="ps-foot">
+        <Button
+          variant="outline"
+          size="sm"
+          icon={<span aria-hidden="true">⭐</span>}
+          onClick={() => window.open(REPO_URL, '_blank', 'noreferrer')}
+        >
+          {t('star')}
+          <img
+            className="ps-foot__avatar"
+            src={STAR_AVATAR}
+            alt=""
+            aria-hidden="true"
+          />
+        </Button>
+      </div>
     </div>
   )
 }
@@ -1828,6 +1861,7 @@ const zh = {
   subtitle: '新会话的默认人设，以及可切换角色的集中管理。',
   repo: 'GitHub',
   issues: '问题反馈',
+  star: '顺手留颗 Star吧，作者今天能多吃一个鸡腿 ~感谢大家的支持',
   versionLabel: '插件版本',
   countRoles: '角色数',
   tabGeneral: '常规',
@@ -1914,6 +1948,7 @@ const en = {
   subtitle: 'The default persona for new sessions, plus one place for every switchable role.',
   repo: 'GitHub',
   issues: 'Feedback',
+  star: 'Leave a Star on the way out — the author gets an extra chicken leg today. Thanks for the support!',
   versionLabel: 'Plugin version',
   countRoles: 'Roles',
   tabGeneral: 'General',

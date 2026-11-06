@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   由 `scripts/build-client.mjs` 在构建时注入，因此它永远是正在运行的那个 bundle 的版本，
   而不是请求发生时 `package.json` 恰好写着什么）。角色数移到「角色库」标签页里
   「角色库」卡片的标题旁。
+- 设置页标题右侧新增 **GitHub** / **问题反馈** 两个按钮，分别打开仓库与 issue 列表
+  （沿用宿主的 `outline` / `sm` 按钮规格与 `window.open(..., '_blank', 'noreferrer')`）；
+  页面最底部新增一个「留个 Star」按钮，右端带一枚圆形头像——图片以 data URL 内联进
+  bundle（客户端半没有自己的静态资源路由），由 `scripts/make-star-avatar.py` 从立绘生成，
+  64×64、约 3 KB。
+- `scripts/install-desktop.mjs` 覆盖只读文件时不再直接抛 `EPERM`：先清掉目标文件的只读位
+  再重试一次。从附件目录拷来的图片会带着只读属性，pnpm 又把它原样带进 profile。
 - `peerDependencies` 的 `@deepseek-ai/dsh-tools` 区间补上 `^0.2.2-rc.1`：原区间在纯
   semver 语义下不含 `0.2.2-rc.1`（预发布只在同 tuple 下参与比较），DSH 因优先使用
   `engines.dsh` 而忽略 peer，但声明本身应当覆盖实际验证过的版本。

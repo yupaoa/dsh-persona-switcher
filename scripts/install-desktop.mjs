@@ -16,7 +16,7 @@
  *         (default profile: desktop)
  */
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -99,7 +99,17 @@ const sync = (fromDir, toDir) => {
       continue
     }
     if (!entry.isFile()) continue
-    copyFileSync(from, to)
+    try {
+      copyFileSync(from, to)
+    } catch (error) {
+      // Windows refuses to overwrite a read-only destination, and a file that
+      // came out of an attachments directory (or a read-only checkout) carries
+      // that bit along. Clearing it on the installed copy and retrying once is
+      // what `attrib -r` would do by hand.
+      if (error?.code !== 'EPERM') throw error
+      chmodSync(to, 0o666)
+      copyFileSync(from, to)
+    }
     copied += 1
   }
 }
