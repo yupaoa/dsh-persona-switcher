@@ -1,6 +1,6 @@
 # dsh-persona-switcher
 
-[![CI](https://github.com/yupaoa/dsh-persona-switcher/actions/workflows/ci.yml/badge.svg)](https://github.com/yupaoa/dsh-persona-switcher/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/yupaoa/dsh-persona-switcher/ci.yml?branch=main&label=CI)](https://github.com/yupaoa/dsh-persona-switcher/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/dsh-persona-switcher.svg)](https://www.npmjs.com/package/dsh-persona-switcher)
 [![license](https://img.shields.io/npm/l/dsh-persona-switcher.svg)](LICENSE)
 
@@ -9,7 +9,7 @@
 DeepSeek Harness 的人设切换插件：把一个角色的性格、语气、称呼装进当前这个对话，随时能换、
 随时能退。它会的工具、技能、用的模型，一点都不动——就像同一个人换了副嗓音，手里的活儿还是那些活儿。
 
-<img src="docs/images/settings-general-top.webp" alt="设置 → 人设切换：常规标签页上半部分（版本号、GitHub 与问题反馈入口、默认角色、role_probe 开关）" width="780">
+![设置 → 人设切换：常规标签页上半部分（版本号、GitHub 与问题反馈入口、默认角色、role_probe 开关）](docs/images/settings-general-top.png)
 
 [English](README.en.md) · **中文**
 
@@ -65,7 +65,7 @@ DSH 本来就有一个人设：它告诉模型「你是谁、说话是什么风�
 
 上半部分（见页首截图）是默认角色和 `role_probe` 开关，下半部分长这样：
 
-<img src="docs/images/settings-general-mascot.webp" alt="常规页下半部分：输入框人设选择器开关、屏幕吉祥物（总开关、大小、切换动画、位置）" width="780">
+![常规页下半部分：输入框人设选择器开关、屏幕吉祥物（总开关、大小、切换动画、位置）](docs/images/settings-general-mascot.png)
 
 - **默认角色**：新对话默认扮演谁。留空就是「不设默认」，跟随 DSH 原本的人设。
   改完点右边的保存。
@@ -78,7 +78,7 @@ DSH 本来就有一个人设：它告诉模型「你是谁、说话是什么风�
 
 ### 角色库
 
-<img src="docs/images/settings-role-library.webp" alt="角色库：角色列表（名称、id、是否有立绘）与新建、换一张、清除立绘、编辑、删除" width="780">
+![角色库：角色列表（名称、id、是否有立绘）与新建、换一张、清除立绘、编辑、删除](docs/images/settings-role-library.png)
 
 - 每一行是一个角色：名字、`id`（角色在磁盘上的文件夹名）、一句话介绍，以及有没有立绘。
 - **新增角色**：填名字、写介绍、写人设正文，保存即生效。

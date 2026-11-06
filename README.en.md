@@ -1,6 +1,6 @@
 # dsh-persona-switcher
 
-[![CI](https://github.com/yupaoa/dsh-persona-switcher/actions/workflows/ci.yml/badge.svg)](https://github.com/yupaoa/dsh-persona-switcher/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/yupaoa/dsh-persona-switcher/ci.yml?branch=main&label=CI)](https://github.com/yupaoa/dsh-persona-switcher/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/dsh-persona-switcher.svg)](https://www.npmjs.com/package/dsh-persona-switcher)
 [![license](https://img.shields.io/npm/l/dsh-persona-switcher.svg)](LICENSE)
 
@@ -11,7 +11,7 @@ of addressing you into the current conversation, switchable at any moment, remov
 Its tools, its skills, the model it runs on: none of that moves by an inch — like the same person
 with a different voice, hands still on the same work.
 
-<img src="docs/images/settings-general-top.webp" alt="Settings → Persona Switcher: the upper half of the General tab (version, GitHub and issue-reporting links, default role, role_probe switch)" width="780">
+![Settings → Persona Switcher: the upper half of the General tab (version, GitHub and issue-reporting links, default role, role_probe switch)](docs/images/settings-general-top.png)
 
 **English** · [中文](README.md)
 
@@ -85,7 +85,7 @@ To change back to the way it was right now: the same button, choose "No persona"
 The upper half (see the screenshot at the top of this page) holds the default role and the
 `role_probe` switch. The lower half looks like this:
 
-<img src="docs/images/settings-general-mascot.webp" alt="The lower half of the General page: the composer persona-picker switch, and the screen mascot (master switch, size, switch animation, position)" width="780">
+![The lower half of the General page: the composer persona-picker switch, and the screen mascot (master switch, size, switch animation, position)](docs/images/settings-general-mascot.png)
 
 - **Default role**: who new conversations play by default. Leave it empty for "no default", which
   follows DSH's own persona. Click save on the right after changing it.
@@ -100,7 +100,7 @@ The upper half (see the screenshot at the top of this page) holds the default ro
 
 ### Role library
 
-<img src="docs/images/settings-role-library.webp" alt="Role library: the role list (name, id, whether there is artwork) with new, replace artwork, clear artwork, edit and delete" width="780">
+![Role library: the role list (name, id, whether there is artwork) with new, replace artwork, clear artwork, edit and delete](docs/images/settings-role-library.png)
 
 - Each row is one role: its name, its `id` (the role's folder name on disk), a one-line
   description, and whether it has artwork.

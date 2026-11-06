@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-11-07
+
+### Fixed
+
+- README 的三张截图在 **DSH 插件页里不显示**：宿主用 `X-Content-Type-Options: nosniff`
+  提供包内文件，`.webp` 的 MIME 对不上，浏览器拒绝把它当图片渲染——同目录的
+  `how-it-works.svg` 因为 `image/svg+xml` 正确，一直正常。三张图改为 PNG
+  （109 / 158 / 118 KB）。
+- README 里的**原始 HTML `<img>` 标签被渲染器丢弃**：DSH 的 README 渲染管线不启用
+  `rehype-raw`，原始 HTML 一律不渲染，只有 Markdown 图片语法生效。三处改为 `![](...)`，
+  并把图缩到 780 px 宽（Markdown 无法设置宽度，只能让文件本身带上显示尺寸）。
+- **CI 徽章在插件页显示不出来**：原地址是 GitHub 原生的 `ci.yml/badge.svg`，改用
+  shields.io 的 workflow status 端点——同一页上 npm 与 license 徽章都是 shields.io，
+  一直正常，这是两者唯一的差别。
+- `package.json` 的 `files` 里没有 `docs`，**npm 装出来的包不带 README 引用的图片**；
+  补上 `docs`，并补上此前遗漏的 `README.en.md`。
+
 ## [0.4.0] - 2026-11-06
 
 ### Fixed
