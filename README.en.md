@@ -62,7 +62,8 @@ To change back to the way it was right now: the same button, choose "No persona"
 - 🎭 **One role per conversation**: this conversation is Amiya, that one is Whale Girl, and the
   two do not fight each other.
 - 🔘 **The Persona button under the input box**: one click to search and choose. It reads
-  "Persona" while nothing is bound, and shows the role's name once one is.
+  "Persona" while nothing is bound, and shows the role's name once one is. The "Add role" row
+  opens the settings page's new-role form directly.
 - ⌨️ **Slash command**: one line of `/role` switches the persona; people who live on the keyboard
   never have to leave the input box.
 - 📚 **Role library**: create, edit and delete roles on the settings page, without hunting for
@@ -154,11 +155,13 @@ A few hard rules:
 
 ### The Persona button
 
-Under the input box, after the permission and emoji buttons, the one that reads "Persona" (or the
-current role's name). Open it to search by name, `id` or description; the current role carries a
-check mark. The first row is "No persona" — choose it and you are back to DSH's own persona. The
-list re-reads the role library every time it opens, so a role you just added on the settings page
-is selectable right away.
+Under the input box, the one that reads "Persona" (or the current role's name). Open it to search by
+name, `id` or description; the current role carries a check mark. The first row is "No persona" —
+choose it and you are back to DSH's own persona. The "Add role" row opens the settings page's
+new-role form directly. The list re-reads the role library every time it opens, so a role you just
+added on the settings page is selectable right away.
+
+![The role picker in a conversation: a search box, the current role with a check mark, "No persona" and "Add role"](docs/images/role-picker.png)
 
 ### The slash command
 
