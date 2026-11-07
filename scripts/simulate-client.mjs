@@ -512,7 +512,9 @@ if (toolWrite === undefined) throw new Error('exposeTool write not recorded')
 injected.controller.edit(null)
 state = store.getSnapshot()
 if (state.editing === null) throw new Error('edit(null) did not open editor')
-if (state.editing.id !== 'char001') throw new Error('new role must suggest char001')
+// A new row starts blank: the suggestion lives in the placeholder, so nobody
+// gets committed to `char001` as a directory name they never chose.
+if (state.editing.id !== '') throw new Error('a new role must start with a blank id')
 injected.controller.patchEditing('name', 'Engineer')
 state = store.getSnapshot()
 if (state.editing.name !== 'Engineer') throw new Error('patchEditing lost')
@@ -522,8 +524,23 @@ if (state.editing !== null) throw new Error('commitEdit did not close editor')
 if (state.roles.length !== 2) throw new Error('commitEdit did not reload roles')
 const post = fetchCalls.find((c) => c.url === '/persona-switcher/role' && c.options?.method === 'POST')
 if (post === undefined) throw new Error('POST /role not issued')
+const createdId = JSON.parse(post.options.body).id
+if (createdId !== 'char001') {
+  throw new Error(`a blank id must fall back to the suggestion, got ${createdId}`)
+}
+// The fallback reads the library, so a second blank row skips what is there.
 injected.controller.edit(null)
-if (store.getSnapshot().editing.id !== 'char002') throw new Error('suggestion must skip an existing id')
+if (store.getSnapshot().editing.id !== '') throw new Error('a new role must start with a blank id')
+await injected.controller.commitEdit()
+const blankPosts = fetchCalls.filter(
+  (c) => c.url === '/persona-switcher/role' && c.options?.method === 'POST'
+)
+const secondId = JSON.parse(blankPosts[blankPosts.length - 1].options.body).id
+if (secondId !== 'char002') {
+  throw new Error(`the suggestion must skip ids already in the library, got ${secondId}`)
+}
+await injected.controller.remove({ id: 'char002' })
+injected.controller.edit(null)
 injected.controller.patchEditing('id', 'teacher')
 const writesBeforeCollision = fetchCalls.filter((c) => c.options?.method === 'POST').length
 await injected.controller.commitEdit()

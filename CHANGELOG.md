@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-11-07
+
+### Changed
+
+- 新增角色时，**id 输入框不再预填 `char001`**。id 是文件夹名，创建后不能改，预填等于替人做了
+  一个改不掉的决定，角色库里很快就会攒出一串没有意义的 `char001`、`char002`。现在输入框默认
+  空着，只用一个灰色占位符提示下一个可用 id；不想取名字的人直接点保存，仍然会自动用那个建议值，
+  所以「填个名字就能存」这条路径没有变慢。
+
 ## [0.4.1] - 2026-11-07
 
 ### Fixed

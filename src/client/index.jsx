@@ -278,7 +278,11 @@ class PersonaSwitcherCardController {
 
   /** Begin editing a role; `null` prepares a new-role row. */
   edit(role) {
-    this.editing = role === null ? { ...emptyRole(), id: nextRoleId(this.roles) } : { ...role }
+    // A new row starts with a blank id on purpose. The id is a directory name
+    // and cannot be renamed later, so pre-filling `char001` quietly committed
+    // people to ids they never chose. The field shows the suggestion as a
+    // placeholder instead, and `commitEdit` falls back to it when left empty.
+    this.editing = role === null ? emptyRole() : { ...role }
     this.editingNew = role === null
     this.tab = 'library'
     this.confirming = null
@@ -295,6 +299,13 @@ class PersonaSwitcherCardController {
   /** Write the staged editor row through the role library. */
   async commitEdit() {
     if (this.editing === null) return
+    // A blank id means "use the suggestion": the field is optional on screen,
+    // but a role always has to land in a directory, so the Host still receives
+    // a real id.
+    const target =
+      this.editingNew && this.editing.id.trim() === ''
+        ? { ...this.editing, id: nextRoleId(this.roles) }
+        : this.editing
     this.busy = true
     this.error = null
     this.form.publish()
@@ -302,13 +313,13 @@ class PersonaSwitcherCardController {
       if (this.editingNew) {
         const payload = await api('GET', '/roles')
         if (!Array.isArray(payload?.roles)) throw new Error(this.t('composerLibraryUnavailable'))
-        if (payload.roles.some((role) => role.id === this.editing.id.trim())) {
+        if (payload.roles.some((role) => role.id === target.id.trim())) {
           throw new Error(this.t('roleIdExists'))
         }
       }
       // A new role is created with `createOnly`, so the library — not this
       // form's snapshot — is the authority on whether the id is taken.
-      await api('POST', '/role', this.editingNew ? { ...this.editing, createOnly: true } : this.editing)
+      await api('POST', '/role', this.editingNew ? { ...target, createOnly: true } : target)
       this.editing = null
       this.editingNew = false
       await this.load()
@@ -1324,7 +1335,10 @@ const PersonaSwitcherSection = (props) => {
   }
 
   const idText = editing === null ? '' : editing.id
-  const idInvalid = editingNew && !ID_PATTERN.test(idText)
+  // An empty id is not an error: the save falls back to the suggestion below.
+  // Only a non-empty id that breaks the pattern is something to complain about.
+  const idSuggestion = nextRoleId(roles)
+  const idInvalid = editingNew && idText.trim() !== '' && !ID_PATTERN.test(idText.trim())
   // `String(...)` around the value: this renders inside the HOST's settings
   // screen, and the role library is a directory a person can hand-edit. A role
   // file with no `name` used to throw right here — taking the whole settings
@@ -1504,11 +1518,11 @@ const PersonaSwitcherSection = (props) => {
                 className={idInvalid ? 'ps-input is-invalid' : 'ps-input'}
                 value={editing.id}
                 disabled={!editingNew || busy}
-                placeholder="whale-girl"
+                placeholder={editingNew ? idSuggestion : 'whale-girl'}
                 onChange={onEditField('id')}
               />
               <span className={idInvalid ? 'ps-field__hint is-error' : 'ps-field__hint'}>
-                {idInvalid && editing.id !== '' ? t('invalidRole') : t('fieldIdHint')}
+                {idInvalid ? t('invalidRole') : t('fieldIdHint')}
               </span>
             </label>
             <label className="ps-field">
