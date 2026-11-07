@@ -35,7 +35,7 @@
  */
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -935,6 +935,84 @@ try {
 
     const cleaned = await call('DELETE', `/persona-switcher/role?id=${encodeURIComponent(id)}`)
     assert.equal(cleaned.status, 200, 'the probe role must be removable again')
+  })
+
+  // ---------------------------------------------------------------------------
+  // 8. Artwork leaves with the role it belongs to
+  // ---------------------------------------------------------------------------
+  // Artwork is keyed by role id and ids are recycled (`char001` comes free again
+  // the moment it is deleted), so a picture that outlives its role is not just
+  // wasted disk: the next role under that id wears it.
+  await checkAsync('deleting a role removes its artwork and its map entry', async () => {
+    const id = 'probe-artwork'
+    await seedRole(id)
+    const listed = await call('GET', '/persona-switcher/roles')
+    assert.equal(listed.status, 200)
+
+    const uploaded = await call('POST', `/persona-switcher/mascot?role=${id}`, {
+      image: asDataUrl(artwork.png, 'image/png'),
+      box: '64x64'
+    })
+    assert.equal(uploaded.status, 200, `seeding artwork failed: ${JSON.stringify(uploaded.value)}`)
+    assert.ok((await readMap())[id]?.image, 'the map must name the uploaded file before the deletion')
+
+    const deleted = await call('DELETE', `/persona-switcher/role?id=${id}`)
+    assert.equal(deleted.status, 200)
+
+    assert.equal((await readMap())[id], undefined, 'a deleted role must not keep a map entry')
+    const leftovers = (await readdir(mascotDir)).filter((name) => name.startsWith(`${id}-`))
+    assert.deepEqual(leftovers, [], 'a deleted role must not keep artwork files')
+  })
+
+  await checkAsync('the artwork of a hand-deleted role is reaped on the next scan', async () => {
+    const id = 'probe-orphan'
+    await seedRole(id)
+    await call('GET', '/persona-switcher/roles')
+    const uploaded = await call('POST', `/persona-switcher/mascot?role=${id}`, {
+      image: asDataUrl(artwork.png, 'image/png'),
+      box: '64x64'
+    })
+    assert.equal(uploaded.status, 200, `seeding artwork failed: ${JSON.stringify(uploaded.value)}`)
+
+    // A directory removed outside the plugin — a restore, a stray `rm` — looks
+    // exactly like this, and no route of ours ever heard about it.
+    await rm(join(rolesDir, id), { recursive: true, force: true })
+    const rescanned = await call('GET', '/persona-switcher/roles')
+    assert.equal(rescanned.status, 200)
+    assert.ok(
+      !(rescanned.value?.roles ?? []).some((role) => role.id === id),
+      'the hand-deleted role must be gone from the catalogue'
+    )
+
+    assert.equal((await readMap())[id], undefined, 'the stale map entry must be dropped')
+    const leftovers = (await readdir(mascotDir)).filter((name) => name.startsWith(`${id}-`))
+    assert.deepEqual(leftovers, [], 'the orphaned files must be removed')
+  })
+
+  await checkAsync('a missing library directory never costs a role its artwork', async () => {
+    const id = 'probe-kept'
+    await seedRole(id)
+    await call('GET', '/persona-switcher/roles')
+    const uploaded = await call('POST', `/persona-switcher/mascot?role=${id}`, {
+      image: asDataUrl(artwork.png, 'image/png'),
+      box: '64x64'
+    })
+    assert.equal(uploaded.status, 200, `seeding artwork failed: ${JSON.stringify(uploaded.value)}`)
+    const before = (await readdir(mascotDir)).filter((name) => name.startsWith(`${id}-`))
+    assert.equal(before.length, 1, 'the artwork must exist before the check')
+
+    // A mistyped library path or an unmounted drive makes every id look gone at
+    // once. Reaping must read that as "cannot tell", not as "delete everything".
+    await rename(rolesDir, `${rolesDir}.away`)
+    try {
+      await call('GET', '/persona-switcher/roles')
+    } finally {
+      await rename(`${rolesDir}.away`, rolesDir)
+    }
+
+    assert.ok((await readMap())[id]?.image, 'the map entry must survive a scan that could not read the library')
+    const after = (await readdir(mascotDir)).filter((name) => name.startsWith(`${id}-`))
+    assert.deepEqual(after, before, 'no file may be removed when the library cannot be read')
   })
 } finally {
   await new Promise((resolve) => server.close(resolve))
