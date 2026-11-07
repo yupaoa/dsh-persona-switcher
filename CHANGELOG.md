@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 立绘清理的两条边界（都会删文件，所以特意收紧）：**前缀相同的角色互不牵连**——一个 id 是另一个的
+  前缀时（如 `amiya` 与 `amiya-x`），删掉前者不再连带删掉后者的立绘；**文件读不出来不等于角色被删**
+  ——手改 `ROLE.md` 写坏了、或正在写入的半截文件，扫描时虽然缺席，立绘也不会被当成孤儿清掉。
 - **删掉的角色不再把立绘留给下一个同 id 的角色。** 立绘按角色 id 存放（`mascot-map.json` 加
   `mascot/<id>-<戳>.<ext>`），而删除角色时只删了角色文件，图目录一动不动；id 又是会被回收的
   （`nextRoleId` 取最小空闲的 `charNNN`），所以删掉 `char001` 后再新建一个留空 id 的角色，

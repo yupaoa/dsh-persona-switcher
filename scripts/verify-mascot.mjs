@@ -989,6 +989,65 @@ try {
     assert.deepEqual(leftovers, [], 'the orphaned files must be removed')
   })
 
+  // ---------------------------------------------------------------------------
+  // 9. Pruning may only ever touch the role it was asked about
+  // ---------------------------------------------------------------------------
+  await checkAsync('deleting a role that prefixes another must not touch its artwork', async () => {
+    // `probe-prefix` prefixes `probe-prefix-child`; a prefix match on the artwork
+    // file name would take the child's picture with the parent.
+    const parent = 'probe-prefix'
+    const child = 'probe-prefix-child'
+    await seedRole(parent)
+    await seedRole(child)
+    await call('GET', '/persona-switcher/roles')
+    for (const id of [parent, child]) {
+      const { status } = await call('POST', `/persona-switcher/mascot?role=${id}`, {
+        image: asDataUrl(artwork.png, 'image/png'),
+        box: '64x64'
+      })
+      assert.equal(status, 200, `seeding artwork for ${id} failed`)
+    }
+    const childFile = (await readMap())[child]?.image
+    assert.ok(childFile, 'the child must have artwork before the deletion')
+
+    const deleted = await call('DELETE', `/persona-switcher/role?id=${parent}`)
+    assert.equal(deleted.status, 200)
+
+    const map = await readMap()
+    assert.equal(map[parent], undefined, 'the deleted parent must lose its map entry')
+    assert.equal(map[child]?.image, childFile, 'the child must keep its map entry')
+    assert.ok(
+      (await readdir(mascotDir)).includes(childFile),
+      'the child must keep its artwork file when a role that prefixes its id is deleted'
+    )
+  })
+
+  await checkAsync('a role file that fails to parse keeps its artwork', async () => {
+    const id = 'probe-broken'
+    await seedRole(id)
+    await call('GET', '/persona-switcher/roles')
+    const uploaded = await call('POST', `/persona-switcher/mascot?role=${id}`, {
+      image: asDataUrl(artwork.png, 'image/png'),
+      box: '64x64'
+    })
+    assert.equal(uploaded.status, 200, `seeding artwork failed: ${JSON.stringify(uploaded.value)}`)
+    const file = (await readMap())[id]?.image
+    assert.ok(file, 'the artwork must exist before the file is broken')
+
+    // A half-saved edit or a typo in the front matter: the file is still there,
+    // and the body is empty, which the scanner skips.
+    await writeFile(join(rolesDir, id, 'ROLE.md'), ['---', `id: ${id}`, `name: ${id}`, '---', ''].join('\n'), 'utf8')
+    const rescanned = await call('GET', '/persona-switcher/roles')
+    assert.equal(rescanned.status, 200)
+    assert.ok(
+      !(rescanned.value?.roles ?? []).some((role) => role.id === id),
+      'an unparsable role must be missing from the catalogue, otherwise this check proves nothing'
+    )
+
+    assert.equal((await readMap())[id]?.image, file, 'a broken role file must not cost the role its artwork')
+    assert.ok((await readdir(mascotDir)).includes(file), 'the artwork file must still be on disk')
+  })
+
   await checkAsync('a missing library directory never costs a role its artwork', async () => {
     const id = 'probe-kept'
     await seedRole(id)
