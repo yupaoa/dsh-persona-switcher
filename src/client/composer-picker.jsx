@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loadOptions, loadRoleLabel, selectRole } from './role-picker.js'
 import { COMPOSER_EVENT, COMPOSER_KEY, readComposerShown } from './composer-preference.js'
@@ -45,6 +45,13 @@ const STYLE = `
 .ps-composer-popup p{margin:8px}
 `
 
+/**
+ * The rows the popup painted last time, keyed by session. Module level on
+ * purpose: the popup itself unmounts when closed, and this is exactly what has
+ * to survive so the next open paints a whole list instead of a loading row.
+ */
+const listCache = new Map()
+
 /** One mounted instance per composer session, never a global current-session id. */
 export function ComposerPicker({ sessionId, api, t, sessions, openLibrary }) {
   const [open, setOpen] = useState(false)
@@ -52,6 +59,7 @@ export function ComposerPicker({ sessionId, api, t, sessions, openLibrary }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
+  const [refreshFailed, setRefreshFailed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [roleLabel, setRoleLabel] = useState(null)
@@ -62,6 +70,7 @@ export function ComposerPicker({ sessionId, api, t, sessions, openLibrary }) {
   const searchInput = useRef(null)
   const alive = useRef(false)
   const pending = useRef(false)
+  const prefetching = useRef(false)
   useEffect(() => {
     alive.current = true
     return () => { alive.current = false }
@@ -111,21 +120,50 @@ export function ComposerPicker({ sessionId, api, t, sessions, openLibrary }) {
     }
   }, [sessionId, api, labelRefresh])
 
-  useEffect(() => {
+  // Paint the last known list before the round-trip, so reopening the popup
+  // never collapses to the "loading" row: the person already waited through
+  // that once, and the refresh underneath corrects a stale row silently.
+  useLayoutEffect(() => {
     if (!open) return
     let cancelled = false
     setSearch('')
     setError('')
-    setStatus('loading')
+    setRefreshFailed(false)
+    const cached = listCache.get(sessionId)
+    if (cached) {
+      setRows(cached)
+      setStatus('ready')
+    } else {
+      setStatus('loading')
+    }
     loadOptions({ sessionId }, { api, t }).then((options) => {
-      if (!cancelled) { setRows(options); setStatus('ready') }
+      if (cancelled) return
+      listCache.set(sessionId, options)
+      setRows(options)
+      setStatus('ready')
     }, (reason) => {
-      if (!cancelled) { setError(String(reason.message ?? reason)); setStatus('error') }
+      // A failed refresh never blanks a list that is already on screen: the rows
+      // stay usable, and the message plus retry sit underneath them.
+      if (cancelled) return
+      setError(String(reason.message ?? reason))
+      if (cached) setRefreshFailed(true)
+      else setStatus('error')
     })
     return () => { cancelled = true }
   }, [open, attempt, sessionId, api, t])
 
-  useEffect(() => {
+  // Warm the list before the click: hovering or focusing the trigger starts the
+  // same read, so the first open is instant too.
+  const prefetch = () => {
+    if (listCache.has(sessionId) || prefetching.current) return
+    prefetching.current = true
+    loadOptions({ sessionId }, { api, t }).then((options) => {
+      listCache.set(sessionId, options)
+      prefetching.current = false
+    }, () => { prefetching.current = false })
+  }
+
+  useLayoutEffect(() => {
     if (!open) return
     const place = () => {
       const rect = trigger.current?.getBoundingClientRect()
@@ -199,6 +237,7 @@ export function ComposerPicker({ sessionId, api, t, sessions, openLibrary }) {
   return <>
     <button type="button" className="ps-composer-trigger" ref={trigger} aria-haspopup="dialog"
       title={roleLabel ?? t('composerPersona')} aria-expanded={open}
+      onPointerEnter={prefetch} onFocus={prefetch}
       onClick={() => setOpen(!open)}>{roleLabel ?? t('composerPersona')}</button>
     {open && createPortal(<div className="ps-composer-popup" ref={popup} style={position}
       role="dialog" aria-label={t('composerPersona')} onKeyDown={moveFocus}>
@@ -206,7 +245,9 @@ export function ComposerPicker({ sessionId, api, t, sessions, openLibrary }) {
         placeholder={t('rolePickSearch')} aria-label={t('rolePickSearch')} />
       {status === 'loading' && <p role="status">{t('loading')}</p>}
       {error && <p className="ps-composer-error" role="alert">{error}</p>}
-      {status === 'error' && <button type="button" onClick={() => setAttempt(attempt + 1)}>{t('composerRetry')}</button>}
+      {(status === 'error' || refreshFailed) && (
+        <button type="button" onClick={() => setAttempt(attempt + 1)}>{t('composerRetry')}</button>
+      )}
       {status === 'ready' && <>
         {filtered.map((row) => <button type="button" key={row.id} disabled={busy}
           aria-pressed={row.active} onClick={() => run(async () => {

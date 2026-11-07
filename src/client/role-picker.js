@@ -75,8 +75,12 @@ export const loadRoleLabel = async (sessionId, api) => {
  * @returns `none` first, then the library in its own order.
  */
 export const loadOptions = async (session, { api, t }) => {
-  const live = await loadLiveRole(session?.sessionId, api)
-  const payload = await api('GET', '/roles')
+  // Neither read depends on the other, and waiting for them in sequence doubles
+  // the pause between clicking the button and seeing rows.
+  const [live, payload] = await Promise.all([
+    loadLiveRole(session?.sessionId, api),
+    api('GET', '/roles')
+  ])
   const catalogue = Array.isArray(payload?.roles) ? payload.roles : []
   return [
     {

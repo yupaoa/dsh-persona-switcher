@@ -89,6 +89,17 @@ try {
   await dialog.getByRole('button', { name: /小鲸/ }).waitFor()
   await page.locator('h1').click()
   await dialog.waitFor({ state: 'hidden' })
+  // Reopening paints the list it already knows. With a deliberately slow host a
+  // re-fetch would otherwise show the "loading" row first and swipe it away.
+  await page.evaluate(() => { fixtures.slow = 300 })
+  const opened = trigger.click()
+  await dialog.waitFor()
+  assert.equal(await dialog.getByRole('status').count(), 0, 'a warm open must not show the loading row')
+  assert.equal(await dialog.getByRole('button', { name: /小鲸/ }).count(), 1, 'a warm open must show rows immediately')
+  await opened
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'hidden' })
+  await page.evaluate(() => { fixtures.slow = 0 })
   await page.evaluate(() => { fixtures.slow = 150 })
   await trigger.click()
   await page.evaluate(() => fixtures.render('a'))
@@ -99,7 +110,12 @@ try {
   await dialog.getByRole('button', { name: /添加人设/ }).click()
   await page.locator('.ps-field input').first().waitFor()
   assert.equal(await page.evaluate(() => fixtures.settingsId), 'persona-switcher')
-  assert.equal(await page.locator('.ps-field input').first().inputValue(), 'char002')
+  assert.equal(await page.locator('.ps-field input').first().inputValue(), '', 'a new role must not pre-fill an id')
+  assert.equal(
+    await page.locator('.ps-field input').first().getAttribute('placeholder'),
+    'char002',
+    'the placeholder must suggest the next free id'
+  )
   await page.locator('.ps-field input').first().fill('custom-persona')
   await page.locator('.ps-field input').nth(1).fill('New persona')
   await page.locator('.ps-field textarea').fill('A new persona')
@@ -151,7 +167,12 @@ try {
   await dialog.getByText('角色库里还没有角色，先到设置页新增一个。').waitFor()
   await dialog.getByRole('button', { name: /添加人设/ }).click()
   await page.locator('.ps-field input').first().waitFor()
-  assert.equal(await page.locator('.ps-field input').first().inputValue(), 'char001')
+  assert.equal(await page.locator('.ps-field input').first().inputValue(), '', 'an empty library still leaves the id blank')
+  assert.equal(
+    await page.locator('.ps-field input').first().getAttribute('placeholder'),
+    'char001',
+    'the first suggestion in an empty library is char001'
+  )
   await page.getByRole('tab', { name: '常规' }).click()
   const composerToggle = page.getByRole('switch', { name: '开启输入框「人设」选择器' })
   assert.equal(await composerToggle.getAttribute('aria-checked'), 'true')

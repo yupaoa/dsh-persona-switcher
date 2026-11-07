@@ -1344,6 +1344,9 @@ const PersonaSwitcherSection = (props) => {
   // file with no `name` used to throw right here — taking the whole settings
   // screen down over one malformed file.
   const nameInvalid = editing === null || String(editing.name ?? '').trim() === ''
+  // A role with no body writes a file the library then refuses to load, so the
+  // form stops it here instead of creating a role that silently vanishes.
+  const personaInvalid = editing === null || String(editing.persona ?? '').trim() === ''
   /** The build that produced this bundle; injected by `scripts/build-client.mjs`. */
   const pluginVersion = typeof __PS_VERSION__ === 'undefined' ? '' : __PS_VERSION__
 
@@ -1546,19 +1549,21 @@ const PersonaSwitcherSection = (props) => {
             <label className="ps-field">
               <span className="ps-field__label">{t('fieldPersona')}</span>
               <textarea
-                className="ps-textarea"
+                className={personaInvalid ? 'ps-textarea is-invalid' : 'ps-textarea'}
                 value={editing.persona}
                 disabled={busy}
                 onChange={onEditField('persona')}
               />
-              <span className="ps-field__hint">{t('fieldPersonaHint')}</span>
+              <span className={personaInvalid ? 'ps-field__hint is-error' : 'ps-field__hint'}>
+                {personaInvalid ? t('invalidPersona') : t('fieldPersonaHint')}
+              </span>
             </label>
           </div>
         </div>
         <div className="ps-card__foot">
           <Button
             variant="primary"
-            disabled={busy || idInvalid || nameInvalid}
+            disabled={busy || idInvalid || nameInvalid || personaInvalid}
             onClick={() => controller.commitEdit()}
           >
             {busy ? t('saving') : t('save')}
@@ -1906,6 +1911,7 @@ const zh = {
   fieldPersona: '人设',
   fieldPersonaHint: '写入新会话的系统提示词（system prompt）。',
   invalidRole: '无效的角色 id',
+  invalidPersona: '人设正文不能为空——没有正文的角色文件会被忽略。',
   save: '保存',
   cancel: '取消',
   unavailable: '设置当前不可用',
@@ -1993,6 +1999,7 @@ const en = {
   fieldPersona: 'Persona',
   fieldPersonaHint: 'The system prompt injected into new sessions.',
   invalidRole: 'Invalid role id',
+  invalidPersona: 'The persona body cannot be empty — a role file with no body is ignored.',
   save: 'Save',
   cancel: 'Cancel',
   unavailable: 'Settings are unavailable right now',
