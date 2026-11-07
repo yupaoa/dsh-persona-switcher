@@ -395,7 +395,12 @@ npm install
 npm run build      # 构建 lib/client.js（esbuild，产物入仓库）
 npm run verify     # 检查不变量：bundle id、patch 行、发布配置、不许出现 recompose、不许遮蔽部署人设前缀
 npm test           # 无网络测试：bundle 模拟 + 宿主绑定 + persona 绑定 + 会话状态持久化 + 创建期绑定 + role-change 声明 + 吉祥物 host 侧 + 吉祥物 client 侧
+npm run test:browser  # 需要浏览器：在真实 Chromium 里跑菜单调度、键盘焦点、布局，以及设置页的角色 CRUD
 ```
+
+> `npm run test:browser` 首次运行前要先装浏览器：`npx playwright install chromium`
+> （约 150 MB，落在用户缓存目录，不进仓库、也不进 npm 包）。它是唯一需要浏览器的一套，
+> 上面那些 `npm test` 的脚本全部在 Node 里跑完，不开浏览器。
 
 > **开发时用 `file:` 装插件的话：`npm run build` 之后必须 `npm run install:desktop`。**
 > `file:` 装出来的是**拷贝**，而且 pnpm 对「目录依赖」记录的 `specifier` 与 `version` 都是 `file:…`

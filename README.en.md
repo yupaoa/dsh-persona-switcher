@@ -476,7 +476,12 @@ npm install
 npm run build      # build lib/client.js (esbuild, artifact committed to the repository)
 npm run verify     # check invariants: bundle id, patch line, publish config, no recompose, no shadowing of the deployment persona prefix
 npm test           # network-free tests: bundle simulation + host binding + persona binding + session state persistence + creation-time binding + role-change statement + mascot host side + mascot client side
+npm run test:browser  # needs a browser: menu dispatch, keyboard focus and layout in real Chromium, plus the settings page's role CRUD
 ```
+
+> `npm run test:browser` needs browsers installed first: `npx playwright install chromium`
+> (about 150 MB, kept in your user cache — it never enters the repository or the npm package). It is
+> the only suite that needs a browser; every `npm test` script above runs entirely inside Node.
 
 > **If you installed the plugin with `file:` during development: after `npm run build` you must run
 > `npm run install:desktop`.** A `file:` install produces a **copy**, and pnpm records both the
