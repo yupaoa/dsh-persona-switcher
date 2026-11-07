@@ -138,7 +138,7 @@ write it as a single flat file `~/.dsh/roles/whale-girl.md`, which also works.
 | Field | Required | Meaning |
 | --- | --- | --- |
 | `id` | Recommended | Role id; lowercase letters, digits and hyphens only. Omit it and the folder name is used |
-| `name` | No | Display name, used on the settings page and in the role list |
+| `name` | No | Display name, used on the settings page and in the role list; falls back to the id when omitted. **Required by the settings page's new-role form** |
 | `description` | No | A one-line description |
 | (the body) | **Yes** | Everything below the separator line is this persona itself; write as much as you like |
 
