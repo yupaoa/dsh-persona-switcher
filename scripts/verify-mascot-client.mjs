@@ -842,9 +842,10 @@ check(
   // Requests must go to the prefix the host actually mounts. The bundle cannot
   // read the host's config, so these are two copies of one fact and they are
   // pinned together here; the host half asserts its own side (the artwork URL is
-  // built from the prefix it mounted at).
-  const clientSource = readFileSync(new URL('../src/client/mascot.jsx', import.meta.url), 'utf8')
-  const declared = /const API_BASE = '([^']+)'/.exec(clientSource)?.[1]
+  // built from the prefix it mounted at). The client's spelling lives in
+  // `src/client/shared.js` — one base for the mascot and the settings page.
+  const clientSource = readFileSync(new URL('../src/client/shared.js', import.meta.url), 'utf8')
+  const declared = /export const API_BASE = '([^']+)'/.exec(clientSource)?.[1]
   check('the client asks the prefix the host mounts by default', declared === API_BASE_UNDER_TEST, String(declared))
   const hostSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
   const hostDefault = /routePrefix: z\.string\(\)\.default\('([^']+)'\)/.exec(hostSource)?.[1]

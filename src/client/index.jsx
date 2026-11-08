@@ -8,6 +8,7 @@ import {
   settingsTextField
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { installMascot } from './mascot.jsx'
+import { API_BASE, installStyleOnce } from './shared.js'
 import { STAR_AVATAR } from './star-avatar.js'
 import { installRolePicker } from './role-picker.js'
 import { installComposerPicker, nextRoleId } from './composer-picker.jsx'
@@ -59,8 +60,6 @@ import {
 const NS = 'persona-switcher'
 /** Settings entry this page edits; matches the Host-side row id. */
 const CONFIG_KEY = 'persona-switcher'
-/** URL prefix of the role library API. */
-const API_BASE = '/persona-switcher'
 
 /** Required services (cordis fiber inject). */
 export const inject = ['slots', 'locale', 'configForms']
@@ -70,6 +69,11 @@ const emptyRole = () => ({ id: '', name: '', description: '', persona: '' })
 
 /** Role ids: lowercase letters, digits, hyphens (leading alnum). */
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/
+/** Must match the Host's limits so the form cannot offer a save the Host refuses. */
+const ID_MAX_LENGTH = 64
+const PERSONA_MAX_LENGTH = 16_000
+/** Words `/role` reads as commands; the Host refuses these ids, so the form must too. */
+const RESERVED_ROLE_IDS = new Set(['none', 'off', 'list', 'default'])
 
 /** Image types the Host accepts for mascot artwork (magic-byte sniffed there). */
 const ARTWORK_ACCEPT = 'image/png,image/jpeg,image/webp'
@@ -180,6 +184,8 @@ class PersonaSwitcherCardController {
   tab = 'general'
   /** Role id waiting for a delete confirmation, or `null`. */
   confirming = null
+  /** Role id waiting for a "clear the artwork" confirmation, or `null`. */
+  confirmingArt = null
   /** Latest load wins; an older response never overwrites a newer one. */
   generation = 0
 
@@ -216,6 +222,7 @@ class PersonaSwitcherCardController {
       busy: this.busy,
       tab: this.tab,
       confirming: this.confirming,
+      confirmingArt: this.confirmingArt,
       composerShown: this.composerShown,
       mascotShown: this.mascotShown,
       mascotSize: this.mascotSize,
@@ -223,23 +230,45 @@ class PersonaSwitcherCardController {
     }
   }
 
-  /** Switch the visible page tab and drop any pending delete confirmation. */
+  /** Switch the visible page tab and drop any pending confirmation. */
   setTab(tab) {
     if (tab !== 'general' && tab !== 'library') return
     this.tab = tab
     this.confirming = null
+    this.confirmingArt = null
     this.form.publish()
   }
 
   /** Ask the row for a delete confirmation before `remove` runs. */
   setConfirming(id) {
     this.confirming = id
+    this.confirmingArt = null
     this.form.publish()
   }
 
   /** Back out of a pending delete confirmation. */
   cancelConfirm() {
     this.confirming = null
+    this.form.publish()
+  }
+
+  /**
+   * Ask before removing a role's artwork.
+   *
+   * Clearing is one click and cannot be undone from the page — the files are
+   * pruned, so the picture has to be imported again. Deleting a role, which is
+   * the more destructive of the two, already asks; this one answers `DELETE
+   * /mascot` on a mis-click.
+   */
+  setConfirmingArt(id) {
+    this.confirmingArt = id
+    this.confirming = null
+    this.form.publish()
+  }
+
+  /** Back out of a pending artwork removal. */
+  cancelConfirmArt() {
+    this.confirmingArt = null
     this.form.publish()
   }
 
@@ -401,6 +430,7 @@ class PersonaSwitcherCardController {
   async clearArtwork(role) {
     this.busy = true
     this.error = null
+    this.confirmingArt = null
     this.form.publish()
     try {
       await api('DELETE', `/mascot?role=${encodeURIComponent(role.id)}`)
@@ -666,13 +696,6 @@ const STYLE_TEXT = `
   line-height: 1.55;
   color: var(--ps-ink-3);
 }
-.dsh-panel.ps-page .ps-head__meta {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  text-align: right;
-  color: var(--ps-ink-3);
-}
 
 /* ── Segmented tab bar with a sliding pill ── */
 .dsh-panel.ps-page .ps-tabs {
@@ -733,6 +756,12 @@ const STYLE_TEXT = `
   flex-direction: column;
   gap: 14px;
   animation: ps-panel-in 180ms var(--ps-ease);
+}
+/* A panel stays mounted (its form holds an unsaved draft) and is hidden instead:
+   the display: flex above would otherwise beat the hidden attribute, which the UA
+   stylesheet expresses as a weaker display: none. */
+.dsh-panel.ps-page .ps-panel[hidden] {
+  display: none;
 }
 @keyframes ps-panel-in {
   from { opacity: 0; transform: translateY(4px); }
@@ -1197,23 +1226,7 @@ const STYLE_TEXT = `
  * DOM) and idempotent across bundle re-execution; the rules are static, so
  * there is nothing to uninstall on dispose.
  */
-const installStyle = () => {
-  if (typeof document === 'undefined' || document.head === null) return
-  const existing = document.getElementById(STYLE_ID)
-  if (existing !== null) {
-    // A client-plugin update hot-reloads this module without reloading the page.
-    // Returning early on "a tag with this id exists" therefore leaves the
-    // PREVIOUS build's rules styling the new markup — which is how the role
-    // count pill ended up under its heading instead of beside it. Replacing the
-    // text keeps the tag count at one and the rules matching this build.
-    if (existing.textContent !== STYLE_TEXT) existing.textContent = STYLE_TEXT
-    return
-  }
-  const style = document.createElement('style')
-  style.id = STYLE_ID
-  style.textContent = STYLE_TEXT
-  document.head.appendChild(style)
-}
+const installStyle = () => installStyleOnce(STYLE_ID, STYLE_TEXT)
 
 /* ── Settings-nav icon ────────────────────────────────────────────────────
  * The shell's settings nav renders the `settings.section.icon` slot — a root,
@@ -1275,6 +1288,7 @@ const PersonaSwitcherSection = (props) => {
     exposeTool,
     tab,
     confirming,
+  confirmingArt,
     status,
     editingNew,
     composerShown,
@@ -1338,15 +1352,24 @@ const PersonaSwitcherSection = (props) => {
   // An empty id is not an error: the save falls back to the suggestion below.
   // Only a non-empty id that breaks the pattern is something to complain about.
   const idSuggestion = nextRoleId(roles)
-  const idInvalid = editingNew && idText.trim() !== '' && !ID_PATTERN.test(idText.trim())
+  const draftId = idText.trim()
+  // The same three rules the Host applies, so the form cannot offer a save it
+  // will refuse: the pattern, the length ceiling, and the words `/role` reads as
+  // commands (a role named `none` could never be selected).
+  const idInvalid =
+    editingNew &&
+    draftId !== '' &&
+    (!ID_PATTERN.test(draftId) || draftId.length > ID_MAX_LENGTH || RESERVED_ROLE_IDS.has(draftId))
   // `String(...)` around the value: this renders inside the HOST's settings
   // screen, and the role library is a directory a person can hand-edit. A role
   // file with no `name` used to throw right here — taking the whole settings
   // screen down over one malformed file.
   const nameInvalid = editing === null || String(editing.name ?? '').trim() === ''
   // A role with no body writes a file the library then refuses to load, so the
-  // form stops it here instead of creating a role that silently vanishes.
-  const personaInvalid = editing === null || String(editing.persona ?? '').trim() === ''
+  // form stops it here instead of creating a role that silently vanishes. The
+  // ceiling is the Host's too: past it, the save comes back 400 after the click.
+  const personaText = String(editing?.persona ?? '')
+  const personaInvalid = editing === null || personaText.trim() === '' || personaText.length > PERSONA_MAX_LENGTH
   /** The build that produced this bundle; injected by `scripts/build-client.mjs`. */
   const pluginVersion = typeof __PS_VERSION__ === 'undefined' ? '' : __PS_VERSION__
 
@@ -1452,14 +1475,30 @@ const PersonaSwitcherSection = (props) => {
                   {role.mascot?.image ? t('mascotReplace') : t('mascotImport')}
                 </Button>
                 {role.mascot?.image ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => void controller.clearArtwork(role)}
-                  >
-                    {t('mascotClear')}
-                  </Button>
+                  confirmingArt === role.id ? (
+                    <>
+                      <Button
+                        size="sm"
+                        className="ps-danger-btn"
+                        disabled={busy}
+                        onClick={() => void controller.clearArtwork(role)}
+                      >
+                        {t('mascotClear')}
+                      </Button>
+                      <Button size="sm" disabled={busy} onClick={() => controller.cancelConfirmArt()}>
+                        {t('cancel')}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => controller.setConfirmingArt(role.id)}
+                    >
+                      {t('mascotClear')}
+                    </Button>
+                  )
                 ) : null}
                 <Button size="sm" disabled={busy} onClick={() => controller.edit(role)}>
                   {t('edit')}
@@ -1634,8 +1673,17 @@ const PersonaSwitcherSection = (props) => {
         ))}
       </div>
 
-      {tab === 'general' ? (
-        <div className="ps-panel" role="tabpanel" id="ps-panel-general" aria-labelledby="ps-tab-general">
+      {/* Both panels stay mounted and are hidden instead. The general panel owns
+          the SettingsForm, and the host primitives discard a form's draft when it
+          unmounts — so switching to "Library" and back used to silently drop an
+          unsaved defaultRole edit. */}
+      <div
+        className="ps-panel"
+        role="tabpanel"
+        id="ps-panel-general"
+        aria-labelledby="ps-tab-general"
+        hidden={tab !== 'general'}
+      >
           <section className="ps-card">
             <div className="ps-card__head">
               <div>
@@ -1795,11 +1843,15 @@ const PersonaSwitcherSection = (props) => {
             </div>
           </section>
         </div>
-      ) : (
-        <div className="ps-panel" role="tabpanel" id="ps-panel-library" aria-labelledby="ps-tab-library">
-          {editor ?? roleLibrary}
-        </div>
-      )}
+      <div
+        className="ps-panel"
+        role="tabpanel"
+        id="ps-panel-library"
+        aria-labelledby="ps-tab-library"
+        hidden={tab !== 'library'}
+      >
+        {editor ?? roleLibrary}
+      </div>
 
       <div className="ps-foot">
         <Button

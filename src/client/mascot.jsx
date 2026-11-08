@@ -1,6 +1,8 @@
 import { createElement as h, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { API_BASE, installStyleOnce } from './shared.js'
+
 /**
  * The persona mascot, browser half: the on-screen companion that shows the
  * current session's role artwork while a session is on screen.
@@ -39,8 +41,6 @@ import { createRoot } from 'react-dom/client'
 const DOCK_ID = 'dsh-persona-switcher-mascot-dock'
 /** Own style id — distinct from the settings page's `persona-switcher-settings-style`. */
 const STYLE_ID = 'persona-switcher-mascot-style'
-/** URL prefix of the role library API (`src/client/index.jsx` owns the base too). */
-const API_BASE = '/persona-switcher'
 /** Master switch, owned by the settings page and read here (client-side preference). */
 const SHOWN_KEY = 'dsh-persona-switcher:mascot-shown'
 /** Resting position, `{ x, y }` in viewport pixels, top-left of the artwork box. */
@@ -75,16 +75,6 @@ const EDGE = 8
 const DEFAULT_WIDTH = 140
 /** How often to re-ask the host "who is this session" and "who has artwork", in ms. */
 const POLL_MS = 5000
-/**
- * How often to re-ask "which role is this session bound to", in ms, when the
- * host has no counter endpoint.
- *
- * `/role <id>` rebinds the session WITHOUT changing the seat, so a re-read is the
- * only way the mascot can notice a live switch. A host that publishes the
- * revision counter is polled much faster than this (see `REVISION_POLL_MS`);
- * this is the fallback cycle for a host too old to have one.
- */
-const SESSION_POLL_MS = 1500
 /**
  * How often to ask "has anything I draw changed", in ms.
  *
@@ -634,21 +624,7 @@ const STYLE_TEXT = `
  * DOM) and idempotent across bundle re-execution; the rules are static, so
  * there is nothing to uninstall on dispose.
  */
-const installStyle = () => {
-  if (!hasDom() || document.head === null) return
-  const existing = document.getElementById(STYLE_ID)
-  if (existing !== null) {
-    // Same reason as the settings stylesheet: a hot-reloaded client keeps this
-    // module's DOM but not its CSS, so an early return would leave the previous
-    // build's rules in place.
-    if (existing.textContent !== STYLE_TEXT) existing.textContent = STYLE_TEXT
-    return
-  }
-  const style = document.createElement('style')
-  style.id = STYLE_ID
-  style.textContent = STYLE_TEXT
-  document.head.appendChild(style)
-}
+const installStyle = () => installStyleOnce(STYLE_ID, STYLE_TEXT)
 
 /**
  * The mascot itself: resolves the on-screen session's role, fetches its artwork
@@ -1267,8 +1243,7 @@ const PersonaMascot = (props) => {
       onPointerDown,
       onPointerMove,
       onPointerUp,
-      onPointerCancel,
-      onContextMenu: undefined
+      onPointerCancel
     },
     artNode
   )

@@ -148,6 +148,23 @@ await check('a corrupt state file is quarantined, never deleted', async () => {
   await assert.rejects(readFile(file, 'utf8'), { code: 'ENOENT' })
 })
 
+await check('a quarantine that cannot move the file says so', async () => {
+  // Keeping the bad file matters: a person can still read it and repair the entry.
+  // The move used to fail silently, so "quarantined" and "left in place and then
+  // overwritten by the next save" looked identical from outside.
+  await write('{ not json')
+  await rm(`${file}.corrupt`, { force: true })
+  await mkdir(join(`${file}.corrupt`, 'occupied'), { recursive: true })
+  const complaints = []
+  const broken = createSessionState({ file, warn: (message) => complaints.push(message) })
+  assert.equal(await broken.load(), 0)
+  assert.ok(
+    complaints.some((message) => /could not be moved aside/.test(message)),
+    `the failed quarantine must be reported, got: ${JSON.stringify(complaints)}`
+  )
+  await rm(`${file}.corrupt`, { recursive: true, force: true })
+})
+
 await check('a sessions list is treated as malformed', async () => {
   await write(JSON.stringify({ version: STATE_VERSION, sessions: [] }))
   const complaints = []
@@ -191,6 +208,44 @@ await check('entries older than the retention window are dropped on the next wri
   assert.equal(await store.set('new', 'whale-girl'), true)
   assert.deepEqual(store.snapshot(), { live: 'plain', new: 'whale-girl' })
   assert.deepEqual(Object.keys((await read()).sessions).sort(), ['live', 'new'])
+})
+
+await check('a deliberate opt-out is never aged out', async () => {
+  // `/role none` is a decision, not a gap: the entry is what keeps the configured
+  // `defaultRole` from claiming the session again on its next model step. Ageing
+  // it out of the retention window silently re-handed the session to the default.
+  const clock = Date.parse('2026-06-01T00:00:00Z')
+  const stale = new Date(clock - STALE_AFTER_MS - 86_400_000).toISOString()
+  await write(
+    JSON.stringify({
+      version: STATE_VERSION,
+      sessions: { opted: { role: null, at: stale }, forgotten: { role: 'whale-girl', at: stale } }
+    })
+  )
+  const store = createSessionState({ file, now: () => clock })
+  assert.equal(await store.load(), 2)
+  assert.equal(await store.set('fresh', 'plain'), true)
+  assert.deepEqual(
+    Object.keys((await read()).sessions).sort(),
+    ['fresh', 'opted'],
+    'the opt-out must outlive the window; the stale binding may not'
+  )
+})
+
+await check('re-using a role refreshes an entry close to expiring', async () => {
+  // The other half of the same problem: `set` treated an unchanged value as "no
+  // write", so an entry in daily use still aged out from under the session.
+  const clock = Date.parse('2026-06-01T00:00:00Z')
+  const nearExpiry = new Date(clock - STALE_AFTER_MS + 86_400_000).toISOString()
+  await write(JSON.stringify({ version: STATE_VERSION, sessions: { kept: { role: 'plain', at: nearExpiry } } }))
+  const store = createSessionState({ file, now: () => clock })
+  await store.load()
+  assert.equal(
+    await store.set('kept', 'plain'),
+    true,
+    'a re-selection must be recorded, or an entry in daily use expires under the session'
+  )
+  assert.equal(Date.parse((await read()).sessions.kept.at), clock, 'the timestamp must move to the re-selection')
 })
 
 await check('the store refuses to be built without a file', () => {

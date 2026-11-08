@@ -69,6 +69,27 @@ export const loadRoleLabel = async (sessionId, api) => {
 }
 
 /**
+ * Read the live role, keeping "failed" apart from "none".
+ *
+ * The two are not the same answer and must not render the same: `known: false`
+ * means the popup cannot say anything about the session, while `{ known: true,
+ * id: null }` means the deployment persona is in force. Reporting the first as
+ * the second ticked the `none` row on top of a session that actually carries a
+ * role — the row a user would then click to "fix" something that was not broken.
+ *
+ * @param sessionId - the browser session's id.
+ * @param api - the role-library API caller.
+ * @returns `{ known, id }`; `id` is null for the deployment persona.
+ */
+const readLiveRole = async (sessionId, api) => {
+  try {
+    return { known: true, id: await loadLiveRole(sessionId, api, true) }
+  } catch {
+    return { known: false, id: null }
+  }
+}
+
+/**
  * Build the option rows one opening shows.
  * @param session - the session the popup is open for.
  * @param deps - `{ api, t }`.
@@ -77,28 +98,29 @@ export const loadRoleLabel = async (sessionId, api) => {
 export const loadOptions = async (session, { api, t }) => {
   // Neither read depends on the other, and waiting for them in sequence doubles
   // the pause between clicking the button and seeing rows.
-  const [live, payload] = await Promise.all([
-    loadLiveRole(session?.sessionId, api),
-    api('GET', '/roles')
-  ])
+  const [state, payload] = await Promise.all([readLiveRole(session?.sessionId, api), api('GET', '/roles')])
+  const live = state.id
   const catalogue = Array.isArray(payload?.roles) ? payload.roles : []
   return [
     {
       id: NONE_ID,
       label: t('rolePickNone'),
-      detail: `${t('rolePickNoneHint')}${live === null ? ` · ${t('rolePickCurrent')}` : ''}`,
-      active: live === null
+      detail: `${t('rolePickNoneHint')}${state.known && live === null ? ` · ${t('rolePickCurrent')}` : ''}`,
+      active: state.known && live === null
     },
     ...catalogue
       .filter((role) => role.id !== NONE_ID)
-      .map((role) => ({
-        id: role.id,
-        // The role's display name is what a human recognises; the id stays in
-        // the detail line so typing either one finds the row.
-        label: typeof role.name === 'string' && role.name.trim() !== '' ? role.name : role.id,
-        detail: describeRole(role, role.id === live, t),
-        active: role.id === live
-      }))
+      .map((role) => {
+        const current = state.known && role.id === live
+        return {
+          id: role.id,
+          // The role's display name is what a human recognises; the id stays in
+          // the detail line so typing either one finds the row.
+          label: typeof role.name === 'string' && role.name.trim() !== '' ? role.name : role.id,
+          detail: describeRole(role, current, t),
+          active: current
+        }
+      })
   ]
 }
 

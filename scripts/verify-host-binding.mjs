@@ -335,6 +335,38 @@ check('a bare session id answers the bound role, without an agent handle', () =>
   assert.equal(bindings.roleIdOfSession('session-1'), undefined, 'a cleared session has no role')
 })
 
+check('re-binding the same id with edited prose reaches the new text', () => {
+  const prompt = scopedPrompt()
+  const agent = agentWith(prompt)
+  const bindings = createPersonaBindings()
+  bindings.install(agent, ROLE_A)
+  // The dedupe used to compare ids only, so editing the role file and selecting
+  // the role again was a no-op: the model kept reading the superseded prose.
+  const edited = { ...ROLE_A, persona: '你是DeepSeek鲸鱼娘，比之前更温柔。' }
+  const result = bindings.install(agent, edited)
+  assert.equal(result.changed, true, 'edited prose under the same id is a persona change')
+  assert.equal(prompt.sections.get(PERSONA_SECTION), edited.persona, 'the scope must carry the new prose')
+  assert.equal(prompt.registered.length, 2, 'the superseded registration is replaced, not stacked')
+})
+
+check('a new agent for the same session does not claim to carry the old role', () => {
+  const first = scopedPrompt()
+  const bindings = createPersonaBindings()
+  bindings.install(agentWith(first), ROLE_A)
+  // Same session id, a fresh agent scope: a resume, a fork, a recreated agent.
+  // The old registration lives in a scope this agent never reads, so a restore
+  // path that trusted the table alone would report "already bound" and leave the
+  // model without a persona.
+  const second = scopedPrompt()
+  const replacement = agentWith(second)
+  assert.equal(bindings.isLive(replacement), false, 'the new scope carries nothing yet')
+  assert.equal(bindings.roleOf(replacement), ROLE_A.id, 'the table still remembers the choice')
+  bindings.install(replacement, ROLE_A)
+  assert.equal(bindings.isLive(replacement), true, 'the re-install must land in the agent\'s own scope')
+  assert.equal(second.sections.get(PERSONA_SECTION), ROLE_A.persona)
+  assert.equal(first.sections.has(PERSONA_SECTION), false, 'the superseded scope must be released')
+})
+
 if (problems.length > 0) {
   console.error(`\nverify-host-binding: ${problems.length} problem(s)`)
   process.exit(1)

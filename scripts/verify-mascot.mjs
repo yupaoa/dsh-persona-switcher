@@ -161,6 +161,8 @@ let handler
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 /** Command definitions this row registered, by name. */
 const commands = new Map()
+/** One live agent per session id; see `makeAgent` below. */
+const agents = new Map()
 
 /**
  * A fake agent good enough for the real `/role` handler.
@@ -171,6 +173,12 @@ const commands = new Map()
  * a check confirm the persona actually changed.
  */
 const makeAgent = (sessionId) => {
+  // One agent per session, like the host: the command handler and the step hooks
+  // receive the session's live agent, not a freshly built wrapper. The plugin now
+  // notices which prompt scope a persona was installed into, so a new wrapper per
+  // call would model a restart rather than a command.
+  const existing = agents.get(sessionId)
+  if (existing !== undefined) return existing
   const sections = new Map()
   const prompt = {
     section: ({ name, text }) => {
@@ -178,7 +186,9 @@ const makeAgent = (sessionId) => {
       return () => sections.delete(name)
     }
   }
-  return { agent: { session: { id: sessionId }, ctx: { get: (service) => (service === 'systemPrompt' ? prompt : undefined) } }, sections }
+  const built = { agent: { session: { id: sessionId }, ctx: { get: (service) => (service === 'systemPrompt' ? prompt : undefined) } }, sections }
+  agents.set(sessionId, built)
+  return built
 }
 
 /**
@@ -1072,6 +1082,164 @@ try {
     assert.ok((await readMap())[id]?.image, 'the map entry must survive a scan that could not read the library')
     const after = (await readdir(mascotDir)).filter((name) => name.startsWith(`${id}-`))
     assert.deepEqual(after, before, 'no file may be removed when the library cannot be read')
+  })
+
+  // The replacement write used to `rm` the map first. If that rm landed and the
+  // rename then failed, the map was simply gone — and every loader reads a
+  // missing map as "no role has artwork". The bytes are still on disk, so the
+  // binding must be rebuilt from what the library holds instead of forgotten.
+  await checkAsync('a vanished artwork map does not forget the artwork still on disk', async () => {
+    const id = 'map-heal'
+    await seedRole(id)
+    await call('GET', '/persona-switcher/roles')
+    const uploaded = await call('POST', `/persona-switcher/mascot?role=${id}`, {
+      image: asDataUrl(artwork.png, 'image/png'),
+      box: '64x64'
+    })
+    assert.equal(uploaded.status, 200, `seeding artwork failed: ${JSON.stringify(uploaded.value)}`)
+    assert.ok(await mascotOf(id), 'the role must report artwork before the map is removed')
+
+    await rm(mapFile, { force: true })
+    assert.ok(
+      await mascotOf(id),
+      'a missing map must not turn a bound role into an unbound one: the map is gone, the image is not'
+    )
+  })
+
+  // A role may live in a folder whose name differs from its front-matter id, and
+  // the scan skips a file it cannot parse. The reaper judged "still there" by
+  // rebuilding `<dir>/<id>`, so such a role looked deleted the moment its file
+  // was unreadable — and its artwork was removed for good.
+  await checkAsync('an unreadable role file keeps its artwork even when its folder name differs', async () => {
+    const id = 'renamed'
+    const folder = join(rolesDir, 'renamed-folder')
+    const file = join(folder, 'ROLE.md')
+    await mkdir(folder, { recursive: true })
+    await writeFile(
+      file,
+      ['---', `id: ${id}`, 'name: Renamed', 'description: folder name differs', '---', '', 'I am renamed.', ''].join('\n'),
+      'utf8'
+    )
+    await call('GET', '/persona-switcher/roles')
+    const uploaded = await call('POST', `/persona-switcher/mascot?role=${id}`, {
+      image: asDataUrl(artwork.png, 'image/png'),
+      box: '64x64'
+    })
+    assert.equal(uploaded.status, 200, `seeding artwork failed: ${JSON.stringify(uploaded.value)}`)
+
+    // A body-less file is skipped by the scan — the kind of hand edit the plugin
+    // explicitly tolerates ("fixable typo"), not a deletion.
+    await writeFile(file, ['---', `id: ${id}`, 'name: Renamed', '---', '', ''].join('\n'), 'utf8')
+    await call('GET', '/persona-switcher/roles')
+
+    assert.ok((await readMap())[id]?.image, 'the map entry must survive an unreadable role file')
+    const files = (await readdir(mascotDir)).filter((name) => name.startsWith(`${id}-`))
+    assert.equal(files.length, 1, 'the artwork file must still be on disk')
+
+    await writeFile(
+      file,
+      ['---', `id: ${id}`, 'name: Renamed', 'description: restored', '---', '', 'I am renamed again.', ''].join('\n'),
+      'utf8'
+    )
+  })
+
+  // `POST /mascot` built the stored file name out of the client's role id, which
+  // comes from a file a person can edit by hand. Every other id-to-path join is
+  // re-validated (DELETE /role, the artwork reaper); this route was the gap.
+  await checkAsync('an upload cannot be aimed outside the artwork directory', async () => {
+    const id = '../escape'
+    await mkdir(join(rolesDir, 'escape'), { recursive: true })
+    await writeFile(
+      join(rolesDir, 'escape', 'ROLE.md'),
+      ['---', `id: ${id}`, 'name: Escape', 'description: hand-written id', '---', '', 'I escape.', ''].join('\n'),
+      'utf8'
+    )
+    await call('GET', '/persona-switcher/roles')
+
+    const uploaded = await call('POST', `/persona-switcher/mascot?role=${encodeURIComponent(id)}`, {
+      image: asDataUrl(artwork.png, 'image/png'),
+      box: '64x64'
+    })
+    assert.notEqual(uploaded.status, 200, 'an id that is not a safe path segment must be refused')
+
+    const above = (await readdir(join(home, 'persona-switcher'))).filter((name) => name.includes('escape'))
+    assert.deepEqual(above, [], 'nothing may be written outside the artwork directory')
+  })
+
+  // A bundle folder does not have to be named after the role it declares. The
+  // delete route removed the paths rebuilt from the id, so such a role was left
+  // on disk while the response claimed it had been deleted.
+  await checkAsync('deleting a role removes the file the scan read, not a path derived from its id', async () => {
+    const id = 'legacy'
+    const folder = join(rolesDir, 'legacy-folder')
+    await mkdir(folder, { recursive: true })
+    await writeFile(
+      join(folder, 'ROLE.md'),
+      ['---', `id: ${id}`, 'name: Legacy', 'description: folder name differs', '---', '', 'I am legacy.', ''].join('\n'),
+      'utf8'
+    )
+    assert.ok((await rolesOf()).some((role) => role.id === id), 'the role must be in the catalogue first')
+
+    const deleted = await call('DELETE', `/persona-switcher/role?id=${id}`)
+    assert.equal(deleted.status, 200, `delete failed: ${JSON.stringify(deleted.value)}`)
+    assert.equal(
+      (await rolesOf()).some((role) => role.id === id),
+      false,
+      'a role reported as deleted must be gone from the catalogue'
+    )
+    assert.equal(existsSync(folder), false, 'the folder the scanner read must be removed, not a path guessed from the id')
+  })
+
+  // The body reader used to destroy the socket on an oversized request, which
+  // threw away the 400 the route was about to send: the client saw a reset and
+  // had no way to tell "too big" from "the host died". And a parsed body was
+  // never checked to be an object, so `null` reached the route and crashed it
+  // into a 500 — a client mistake reported as a host fault.
+  await checkAsync('an oversized body is answered, not dropped with the connection', async () => {
+    const oversized = { id: 'too-big', name: 'x'.repeat(2 * 1024 * 1024), description: '', persona: 'body' }
+    const res = await call('POST', '/persona-switcher/role', oversized).catch((error) => ({ status: 0, error }))
+    assert.equal(res.status, 400, `an oversized body is a bad request, not a reset (${res.error?.message ?? 'no answer'})`)
+  })
+
+  await checkAsync('a JSON body that is not an object is refused as a bad request', async () => {
+    const res = await call('POST', '/persona-switcher/role', null)
+    assert.equal(res.status, 400, 'a null body must be a 400, not a 500 from the route dereferencing it')
+  })
+
+  // `/role none` is how a session opts out, so a role called `none` can never be
+  // selected — the command reads the word, not the library. Creating one produces
+  // a row that looks selectable in the picker and does nothing when clicked.
+  await checkAsync('a role id that is a /role command word is refused at creation', async () => {
+    for (const id of ['none', 'off', 'list', 'default']) {
+      const res = await call('POST', '/persona-switcher/role', {
+        id,
+        name: id,
+        description: '',
+        persona: `I am ${id}.`
+      })
+      assert.equal(res.status, 400, `"${id}" must not be creatable: /role ${id} is a command`)
+    }
+  })
+
+  // The role file is hand-editable text, but the plugin writes it too. A name with
+  // a newline in it used to be interpolated raw, so `---` in the name closed the
+  // front matter early and the rest of the name became the persona body.
+  await checkAsync('a role name with a newline survives the round-trip through its file', async () => {
+    const name = 'Multi\n---\nline name'
+    const description = 'first line\nsecond line'
+    const created = await call('POST', '/persona-switcher/role', {
+      id: 'roundtrip',
+      name,
+      description,
+      persona: 'I survive the trip.'
+    })
+    assert.equal(created.status, 200, `creating the role failed: ${JSON.stringify(created.value)}`)
+
+    const read = await call('GET', '/persona-switcher/role?id=roundtrip')
+    assert.equal(read.status, 200)
+    assert.equal(read.value.role.name, name, 'the name must come back exactly as it went in')
+    assert.equal(read.value.role.description, description)
+    assert.equal(read.value.role.persona, 'I survive the trip.', 'the body must not absorb the front matter')
   })
 } finally {
   await new Promise((resolve) => server.close(resolve))
