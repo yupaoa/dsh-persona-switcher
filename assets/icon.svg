@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" fill="none">
+  <title>Persona Switcher</title>
+  <defs>
+    <linearGradient id="ps_front_card" x1="4" y1="7" x2="25" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+    <linearGradient id="ps_back_card" x1="11" y1="4" x2="31" y2="29" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6"/>
+      <stop offset="1" stop-color="#C4B5FD"/>
+    </linearGradient>
+  </defs>
+  <g transform="rotate(11 21 17)">
+    <rect x="12" y="4" width="19" height="24.5" rx="4.2" fill="url(#ps_back_card)"/>
+  </g>
+  <rect x="4.4" y="7.2" width="19.8" height="24.6" rx="4.4" fill="url(#ps_front_card)"/>
+  <circle cx="14.3" cy="15.6" r="3.3" fill="#FFFFFF" fill-opacity="0.95"/>
+  <path d="M14.3 20c-3 0-5.3 2-5.7 4.8h11.4c-.4-2.8-2.7-4.8-5.7-4.8Z" fill="#FFFFFF" fill-opacity="0.95"/>
+  <circle cx="27.2" cy="27.2" r="5.9" fill="#F59E0B" stroke="#FFFFFF" stroke-width="1.5"/>
+  <g fill="#FFFFFF" transform="translate(27.2 27.2)">
+    <path transform="translate(-1.75 0)" d="M0,-4.3 L1.9,-1.2 L0.78,-1.2 L0.78,4.3 L-0.78,4.3 L-0.78,-1.2 L-1.9,-1.2 Z"/>
+    <path transform="translate(1.75 0) scale(1 -1)" d="M0,-4.3 L1.9,-1.2 L0.78,-1.2 L0.78,4.3 L-0.78,4.3 L-0.78,-1.2 L-1.9,-1.2 Z"/>
+  </g>
+</svg>

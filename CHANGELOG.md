@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **插件页专属图标。** 按 `cordis-plugin-development` 规范（§Display metadata and icon）新增
+  `assets/icon.svg`（人设卡堆叠 + 切换徽章，1.4 KB 纯矢量），并在 `package.json` 里同时用
+  两种受支持的声明方式接入：顶层 `"icon": "assets/icon.svg"`（优先级更高）与
+  `exports["./icon"]`；`files` 增加 `assets`，确认已在 `npm pack` 收包清单内。
+  此前该插件在插件页只能显示面板的通用图标。
+- `assets/icon-mask.svg`：备选面具版图标，替换顶层 `icon` 与 `exports["./icon"]` 的路径即可切换。
+
 ## [0.4.4] - 2026-11-08
 
 这一版是一次完整审计后的修补：没有新功能，全部是「会丢数据、会假成功、会误报」的边界。

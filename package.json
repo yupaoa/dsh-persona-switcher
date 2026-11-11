@@ -39,7 +39,8 @@
       "default": "./lib/client.js"
     },
     "./package.json": "./package.json",
-    "./locale/*.json": "./locale/*.json"
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./assets/icon.svg"
   },
   "files": [
     "lib/index.js",
@@ -47,6 +48,7 @@
     "lib/session-state.js",
     "lib/client.js",
     "locale",
+    "assets",
     "src",
     "scripts",
     "cordis.patch.yml",
@@ -56,6 +58,7 @@
     "LICENSE",
     "docs"
   ],
+  "icon": "assets/icon.svg",
   "scripts": {
     "build": "node scripts/build-client.mjs",
     "build:client": "node scripts/build-client.mjs",
