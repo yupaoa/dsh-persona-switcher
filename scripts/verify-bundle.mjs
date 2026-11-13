@@ -34,12 +34,16 @@
  *      the package name.
  *
  * It also keeps the publish payload honest: `lib/` must be listed file by file
- * so stale backups (for example `lib/client.js.bak-*`) can never be published.
+ * so stale backups (for example `lib/client.js.bak-*`) can never be published,
+ * and every module the host entry imports relatively must actually be in that
+ * payload — 0.4.4 and 0.4.5 shipped a tarball without `lib/atomic-file.js`,
+ * which made the plugin unloadable for everyone who installed from npm while
+ * local directory installs kept working.
  *
  * Exits non-zero on the first class of problem found.
  */
-import { readFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile, readdir, stat } from 'node:fs/promises'
+import { dirname, join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -286,6 +290,7 @@ for (const entry of [
   'lib/client.js',
   'lib/persona-binding.js',
   'lib/session-state.js',
+  'lib/atomic-file.js',
   'cordis.patch.yml'
 ]) {
   if (!files.includes(entry)) problems.push(`package.json "files" must list ${entry}`)
@@ -302,6 +307,63 @@ if (files.includes('lib')) {
       'explicitly so stale backups are never published'
   )
 }
+
+// ------------------------------------------------- payload completeness
+// A relative import that the payload does not ship fails at load time with
+// ERR_MODULE_NOT_FOUND, and the Host reports that only as a row that never
+// mounted: the settings section, the composer entry and the mascot all vanish
+// with no message anywhere. 0.4.4 and 0.4.5 shipped exactly that —
+// `lib/atomic-file.js` lived in the repository but was missing from `files`, so
+// every tarball install was broken while every directory install kept working,
+// which is why this survived `npm test` and the browser regression. Walk the
+// host entry's relative imports and require each resolved file in the payload.
+const payload = new Set(['package.json'])
+const expand = async (rel) => {
+  const info = await stat(join(root, rel)).catch(() => null)
+  if (info === null) {
+    problems.push(`package.json "files" lists ${rel}, which does not exist on disk`)
+    return
+  }
+  if (!info.isDirectory()) {
+    payload.add(rel)
+    return
+  }
+  for (const dirent of await readdir(join(root, rel), { withFileTypes: true })) {
+    if (dirent.name === 'node_modules' || dirent.name === '.git') continue
+    await expand(posix.join(rel, dirent.name))
+  }
+}
+for (const entry of files) await expand(entry.replace(/^\.\//, '').replace(/\/+$/, ''))
+
+const relativeImports = (source) =>
+  [...source.matchAll(/\b(?:from|import|require)\s*\(?\s*['"](\.\.?\/[^'"]+)['"]/g)].map((match) => match[1])
+
+const walked = new Set()
+const walkImports = async (rel) => {
+  if (walked.has(rel)) return
+  walked.add(rel)
+  const source = await read(rel)
+  if (source === null) return
+  for (const spec of relativeImports(source)) {
+    const resolved = posix.normalize(posix.join(posix.dirname(rel), spec))
+    if (!payload.has(resolved)) {
+      problems.push(
+        `${rel} imports ${spec}, but the publish payload does not ship ${resolved}: a tarball install ` +
+          'fails to load the row with ERR_MODULE_NOT_FOUND and every UI surface disappears without a ' +
+          'message — add it to package.json "files"'
+      )
+      continue
+    }
+    await walkImports(resolved)
+  }
+}
+for (const entry of ['lib/index.js', 'lib/client.js']) {
+  if (payload.has(entry)) await walkImports(entry)
+}
+if (problems.length === 0) {
+  notes.push(`the publish payload ships every module the host entry imports (${walked.size} entry files walked)`)
+}
+
 if (pkg.scripts?.prepublishOnly === undefined) {
   problems.push('package.json has no prepublishOnly script; the published bundle could be stale')
 }

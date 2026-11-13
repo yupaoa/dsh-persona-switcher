@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-11-14
+
+### Fixed
+
+- **发布包漏了 `lib/atomic-file.js`，0.4.4 与 0.4.5 从 npm 装进去都是坏的。** 这个模块是
+  0.4.4 引入的（把「先删再改名」换成原子写），但 `package.json` 的 `files` 白名单没跟上。
+  npm 和 pnpm 的 `file:` 安装都按 `files` 打包，于是发出去的 tarball 里根本没有它，而
+  `lib/index.js` 与 `lib/session-state.js` 都静态 import 它——插件一加载就
+  `ERR_MODULE_NOT_FOUND`，整行挂掉：设置页的「角色」分区、输入框旁的人设按钮、立绘一起
+  消失，宿主只当「这一行没挂上」，不报任何提示。本地目录安装是整目录复制、不经过
+  `files`，所以这个洞一直躲过了全部测试，直到一次 pnpm 重装把它带进 profile、重启后才现形。
+- **`npm run verify` 新增一道守卫。** 现在从 `lib/index.js` 出发走一遍相对 import，要求每个
+  解析出来的文件都必须在打包载荷里；`files` 里写了却不存在的条目也直接失败。写这条检查时
+  先在 0.4.5 的 `package.json` 上跑，确认它会红（3 条 problem：缺清单项 + 两处 import），
+  再补上 `files`，然后才绿。
+
 ## [0.4.5] - 2026-11-14
 
 这一版没有功能变化：新增插件页图标，并在 DSH **0.2.2-rc.3** 上完成复测与开发依赖对齐。
