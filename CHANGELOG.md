@@ -15,6 +15,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   此前该插件在插件页只能显示面板的通用图标。
 - `assets/icon-mask.svg`：备选面具版图标，替换顶层 `icon` 与 `exports["./icon"]` 的路径即可切换。
 
+### Changed
+
+- **已在 DSH 0.2.2-rc.3 上复测，无需改代码。** rc1→rc3 的升级指南只有
+  `v0.2.2-rc.1` 一节（rc2→rc3 没有指南），19 条里没有一条触及本插件使用的面；插件
+  用的 `ctx.systemPrompt.section()`、`ctx.commands.register()`、`defineTool`、
+  `webServer.register({kind:'prefix'})`、`settings.configure()`，以及 Client 侧的
+  `conversation.input.left`、`settings.section`(.icon)、`commandUi`、`configForms`、
+  `sidebarRight`、`session.command(line)` 在 rc.3 里形状不变。实机复测：`/role`、
+  `role_probe`、角色库 HTTP 路由与事务文件全部正常。
+- **开发依赖对齐 rc.3。** `@deepseek-ai/dsh-client-{locale,ui-primitives,ui-settings,ui-slots}`
+  的 devDependencies 从 `^0.2.0-rc.2 || ^0.2.1-rc.1` 改为 `^0.2.2-rc.3`：`^0.2.x-rc`
+  这类预发布范围覆盖不到 rc.3，不改的话重装开发依赖会退回旧 SDK。锁文件随之刷新
+  （cordis 4.1.0、cosmokit 1.9.0、schemastery 3.19.0）。`engines.dsh` 与
+  `peerDependencies` 保持不动——`>=0.2.2-rc.1` / `^0.2.2-rc.1` 本来就覆盖 rc.3。
+- `docs/composer-compatibility.md` 补充 rc.3 的复测记录，并记下两处与 rc.1 说明的差
+  异：`dsh-client-ui-primitives` / `dsh-client-ui-slots` 已并入 Web 前端共享模块表；
+  macOS 浮层的 `data-window-drag-exclude` 要求不影响 Windows。
+
 ## [0.4.4] - 2026-11-08
 
 这一版是一次完整审计后的修补：没有新功能，全部是「会丢数据、会假成功、会误报」的边界。

@@ -6,6 +6,29 @@ Re-checked on 2026-11-06 against **0.2.2-rc.1**: the slot names, the
 `session.command(line)` seam and the `commandUi.decorate()` contract recorded
 here still hold on that release.
 
+Re-checked on 2026-11-14 against the running **0.2.2-rc.3**, both from its
+shipped source and live: every contract above still holds, so this file needs no
+migration. The slot declarations are unchanged in
+`dsh-client-ui-conversation/lib/client.js` (`conversation.input.left`) and
+`dsh-client-ui-settings-general/lib/client.js` (`settings.section` as a
+root-scoped list, `settings.section.icon` as its inline list);
+`dsh-api-session-controller/lib/client.js` still exposes `command(line)`, which
+dispatches through `remote.commands.execute`. `commandUi.decorate()`,
+`configForms` and `sidebarRight` are unchanged too.
+
+Two differences from the rc.1 notes are worth recording:
+
+- `@deepseek-ai/dsh-client-ui-primitives` and `@deepseek-ai/dsh-client-ui-slots`
+  are no longer published as packages inside the Desktop runtime. The Web
+  frontend serves both from its shared module registry
+  (`dsh-web-frontend/dist/assets/index-*.js`), which is exactly what the official
+  `dsh-client-ui-*` bundles import too, so `lib/client.js` may keep them external
+  without declaring `dsh.client.external`.
+- `v0.2.2-rc.1/window-drag-regions` does not reach this profile: overlays above a
+  draggable title bar must declare `data-window-drag-exclude` on **macOS Desktop
+  only**; Windows and Web are explicitly unaffected. That rule becomes relevant
+  the mascot overlay is next exercised on a Mac.
+
 ## Native integration
 
 - `dsh-client-ui-conversation/lib/client.js` declares `conversation.input.left`
