@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-11-14
+
+这一版没有功能变化：新增插件页图标，并在 DSH **0.2.2-rc.3** 上完成复测与开发依赖对齐。
+
 ### Added
 
 - **插件页专属图标。** 按 `cordis-plugin-development` 规范（§Display metadata and icon）新增
