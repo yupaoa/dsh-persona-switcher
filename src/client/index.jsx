@@ -207,10 +207,13 @@ class PersonaSwitcherCardController {
   projection() {
     return {
       ...this.form.shell(),
-      defaultRole: this.form.field('defaultRole'),
       // The committed value, read from the scope the same way `exposeTool` is. The
       // role list below highlights it, and the form field alone cannot answer: its
       // draft only holds what the person clicked.
+      // The form field itself, kept in the snapshot so the client simulation can
+      // prove the descriptor is registered even though the picker reads the
+      // committed value below.
+      defaultRole: this.form.field('defaultRole'),
       defaultRoleValue: String(this.scope.getSnapshot?.()?.value?.defaultRole ?? ''),
       // The optional chain has to cover `getSnapshot` itself, not just its
       // result: this runs inside the store's publish (a render path), so a form
@@ -552,15 +555,6 @@ class PersonaSwitcherCardController {
     return this.form.dispose()
   }
 }
-
-/** Labels the SettingsForm chrome needs. */
-const formLabels = (t) => ({
-  unavailable: t('unavailable'),
-  readOnly: t('readOnly'),
-  saveFailed: t('saveFailed'),
-  save: t('save'),
-  saving: t('saving')
-})
 
 /** Leading glyph of the role's avatar chip. */
 const initialOf = (role) => {
@@ -1196,13 +1190,74 @@ const STYLE_TEXT = `
   color: var(--ps-danger);
 }
 
-/* ── Default-role list: the same rows as the composer's picker, in the page
-   instead of a popup. A card of one-line options beats a free-text id field:
-   nothing to spell, and "no persona" is a visible choice, not an empty box. ── */
+/* ── Default-role picker: closed, one row with the committed value; opened, the
+   same searchable list the composer's picker shows. A card of one-line options
+   beats a free-text id field: nothing to spell, and "no persona" is a visible
+   choice rather than an empty box. ── */
+.dsh-panel.ps-page .ps-defaults__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.dsh-panel.ps-page .ps-defaults__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ps-border-soft);
+  border-radius: 10px;
+  background: var(--ps-surface);
+  color: var(--ps-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.dsh-panel.ps-page .ps-defaults__trigger:hover:not(:disabled) {
+  border-color: var(--ps-border);
+  background: var(--ps-hover);
+}
+.dsh-panel.ps-page .ps-defaults__trigger:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+.dsh-panel.ps-page .ps-defaults__trigger-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dsh-panel.ps-page .ps-defaults__chevron {
+  opacity: 0.55;
+  font-size: 12px;
+}
 .dsh-panel.ps-page .ps-defaults {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+.dsh-panel.ps-page .ps-defaults__search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--ps-border);
+  border-radius: 8px;
+  background: var(--ps-base);
+  color: var(--ps-ink);
+  font-size: 13px;
+}
+.dsh-panel.ps-page .ps-defaults__search:focus {
+  outline: none;
+  border-color: var(--ps-accent);
+}
+.dsh-panel.ps-page .ps-defaults__list {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 .dsh-panel.ps-page .ps-defaults__option {
   display: flex;
@@ -1218,17 +1273,13 @@ const STYLE_TEXT = `
   text-align: left;
   cursor: pointer;
 }
-.dsh-panel.ps-page .ps-defaults__option:hover:not(:disabled) {
+.dsh-panel.ps-page .ps-defaults__option:hover {
   border-color: var(--ps-border);
   background: var(--ps-hover);
 }
 .dsh-panel.ps-page .ps-defaults__option.is-active {
   border-color: var(--ps-accent);
   background: color-mix(in oklab, var(--ps-accent) 12%, transparent);
-}
-.dsh-panel.ps-page .ps-defaults__option:disabled {
-  cursor: default;
-  opacity: 0.65;
 }
 .dsh-panel.ps-page .ps-defaults__name {
   display: inline-flex;
@@ -1246,6 +1297,11 @@ const STYLE_TEXT = `
   font-size: 12px;
   opacity: 0.72;
   line-height: 1.45;
+}
+.dsh-panel.ps-page .ps-defaults__empty {
+  margin: 4px 2px 0;
+  font-size: 12px;
+  opacity: 0.72;
 }
 .dsh-panel.ps-page .ps-defaults__note {
   margin: 8px 0 0;
@@ -1432,19 +1488,70 @@ const PersonaSwitcherSection = (props) => {
   /** The build that produced this bundle; injected by `scripts/build-client.mjs`. */
   const pluginVersion = typeof __PS_VERSION__ === 'undefined' ? '' : __PS_VERSION__
 
-  // The choice the list highlights: the click while a draft is open, otherwise the
-  // value the scope reports as committed. Dropping the local pick on a committed
-  // change is what makes Save and Discard both look right without keeping a second
-  // copy of the form's own state.
+  // The default-role control: one row showing the committed value, expanded on a
+  // click into the same searchable list the composer's picker shows. The local pick
+  // is what lets Save/Cancel mean something — the form's own draft is committed the
+  // moment a row is clicked, so dropping it is what Cancel does.
   const committedDefault = String(state.defaultRoleValue ?? '')
   const [pickedDefault, setPickedDefault] = useState(null)
+  const [listOpen, setListOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [busySave, setBusySave] = useState(false)
+  const [saveError, setSaveError] = useState('')
   useEffect(() => {
     setPickedDefault(null)
   }, [committedDefault])
-  const selectedDefault = pickedDefault ?? committedDefault
+  const draftDefault = pickedDefault ?? committedDefault
+  const defaultDirty = draftDefault !== committedDefault
+  const chosenDefault = roles.find((role) => role.id === committedDefault) ?? null
+  const defaultOptions = [
+    { id: '', label: t('defaultNone'), detail: t('defaultNoneHint') },
+    ...roles.map((role) => ({
+      id: role.id,
+      label: String(role.name ?? role.id),
+      detail: `${role.id}${role.description ? ` — ${role.description}` : ''}`
+    }))
+  ]
+  const searchText = search.trim().toLocaleLowerCase()
+  const visibleDefaults =
+    searchText === ''
+      ? defaultOptions
+      : defaultOptions.filter((option) =>
+          `${option.label} ${option.detail}`.toLocaleLowerCase().includes(searchText)
+        )
+  const openDefaultList = () => {
+    setPickedDefault(null)
+    setSearch('')
+    setSaveError('')
+    setListOpen(true)
+  }
   const chooseDefault = (id) => {
     setPickedDefault(id)
     props.edit('defaultRole', id)
+  }
+  const cancelDefaultList = () => {
+    // Discard, not "re-pick the committed value": the host form holds the draft, and
+    // its own discard is the only path that also clears the dirty flag.
+    props.discard()
+    setPickedDefault(null)
+    setSearch('')
+    setSaveError('')
+    setListOpen(false)
+  }
+  const saveDefaultList = async () => {
+    if (busySave) return
+    setBusySave(true)
+    setSaveError('')
+    try {
+      await props.save()
+      setPickedDefault(null)
+      setSearch('')
+      setListOpen(false)
+    } catch (reason) {
+      setSaveError(String(reason?.message ?? reason))
+    } finally {
+      setBusySave(false)
+    }
   }
 
   const roleLibrary = (
@@ -1764,33 +1871,44 @@ const PersonaSwitcherSection = (props) => {
                 <h3>{t('defaultRole')}</h3>
                 <p>{t('defaultRoleHint')}</p>
               </div>
+              {/* Save and Cancel live here, and only while the list is open: before
+                  the list opens there is no edit to act on, and after it closes the
+                  choice has already been committed or dropped. */}
+              {listOpen && (
+                <div className="ps-defaults__actions">
+                  <Button
+                    size="sm"
+                    className="ps-danger-btn"
+                    disabled={busySave}
+                    onClick={cancelDefaultList}
+                  >
+                    {t('cancel')}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={busySave || !defaultDirty}
+                    onClick={saveDefaultList}
+                  >
+                    {busySave ? t('saving') : t('save')}
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="ps-card__body">
-              <div className="ps-form">
-                <SettingsForm
-                  labels={formLabels(t)}
-                  state={state}
-                  onSave={props.save}
-                  onDiscard={() => {
-                    setPickedDefault(null)
-                    props.discard()
-                  }}
-                >
-                  {/* A list, not a text box: the value is a role id, and typing one
-                      meant knowing ids, remembering their spelling and learning about
-                      a typo only after the save came back 400. Every option is one
-                      click, `none` is a real option rather than "empty the box", and
-                      the deployment value shows as neither because it is not a role. */}
-                  <div className="ps-defaults" role="radiogroup" aria-label={t('defaultRole')}>
-                    {[
-                      { id: '', label: t('defaultNone'), detail: t('defaultNoneHint') },
-                      ...roles.map((role) => ({
-                        id: role.id,
-                        label: String(role.name ?? role.id),
-                        detail: `${role.id}${role.description ? ` — ${role.description}` : ''}`
-                      }))
-                    ].map((option) => {
-                      const active = selectedDefault === option.id
+              {listOpen ? (
+                <div className="ps-defaults">
+                  <input
+                    className="ps-defaults__search"
+                    type="search"
+                    value={search}
+                    placeholder={t('rolePickSearch')}
+                    aria-label={t('rolePickSearch')}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                  <div className="ps-defaults__list" role="radiogroup" aria-label={t('defaultRole')}>
+                    {visibleDefaults.map((option) => {
+                      const active = draftDefault === option.id
                       return (
                         <button
                           key={option.id === '' ? '__none' : option.id}
@@ -1798,7 +1916,6 @@ const PersonaSwitcherSection = (props) => {
                           role="radio"
                           aria-checked={active}
                           className={`ps-defaults__option${active ? ' is-active' : ''}`}
-                          disabled={!state.writable}
                           onClick={() => chooseDefault(option.id)}
                         >
                           <span className="ps-defaults__name">
@@ -1811,10 +1928,39 @@ const PersonaSwitcherSection = (props) => {
                         </button>
                       )
                     })}
+                    {visibleDefaults.length === 0 && (
+                      <p className="ps-defaults__empty">{t('rolePickNoMatch')}</p>
+                    )}
                   </div>
-                  {!state.writable && <p className="ps-defaults__note">{t('overridden')}</p>}
-                </SettingsForm>
-              </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="ps-defaults__trigger"
+                  aria-haspopup="dialog"
+                  disabled={!state.writable}
+                  onClick={openDefaultList}
+                >
+                  <span className="ps-defaults__trigger-text">
+                    <span className="ps-defaults__name">
+                      {chosenDefault === null ? t('defaultNone') : String(chosenDefault.name ?? chosenDefault.id)}
+                    </span>
+                    <small className="ps-defaults__detail">
+                      {chosenDefault === null
+                        ? t('defaultNoneHint')
+                        : `${chosenDefault.id}${chosenDefault.description ? ` — ${chosenDefault.description}` : ''}`}
+                    </small>
+                  </span>
+                  <span className="ps-defaults__chevron" aria-hidden="true">▾</span>
+                </button>
+              )}
+              {!state.writable && <p className="ps-defaults__note">{t('overridden')}</p>}
+              {saveError !== '' && (
+                <p className="ps-error" role="alert">
+                  <span aria-hidden="true">⚠</span>
+                  <span>{saveError}</span>
+                </p>
+              )}
             </div>
           </section>
 
