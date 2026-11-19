@@ -54,8 +54,8 @@ the next sentence on, the one speaking has changed.
    the list.
 5. From your next sentence on, that is the character.
 
-To change back to the way it was right now: the same button, choose "No persona" (or type
-`/role none` directly).
+To change back to the way it was right now: the same button, choose "none · deployment persona" (or
+type `/role none` directly).
 
 ## What it can do
 
@@ -170,12 +170,13 @@ A few hard rules:
 ### The Persona button
 
 Under the input box, the one that reads "Persona" (or the current role's name). Open it to search by
-name, `id` or description; the current role carries a check mark. The first row is "No persona" —
-choose it and you are back to DSH's own persona. The "Add role" row opens the settings page's
+name, `id` or description; the current role carries a check mark. The first row is "none ·
+deployment persona" (no role bound) — choose it and you are back to DSH's own persona. The "Add role"
+row opens the settings page's
 new-role form directly. The list re-reads the role library every time it opens, so a role you just
 added on the settings page is selectable right away.
 
-![The role picker in a conversation: a search box, the current role with a check mark, "No persona" and "Add role"](docs/images/role-picker.png)
+![The role picker in a conversation: a search box, the current role with a check mark, "none · deployment persona" and "Add role"](docs/images/role-picker.png)
 
 ### The slash command
 
