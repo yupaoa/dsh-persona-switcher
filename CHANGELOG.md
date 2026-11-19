@@ -4,12 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.8] - 2026-11-19
 
 ### Changed
 
 - 设置页底部的「顺手留颗 Star」按钮只保留在「常规」页；切到「角色库」后不再显示（角色库本身已经有
   一整屏操作按钮，页脚那颗 Star 在窄窗口里会挤在新卡片下面）。文档里对应两张截图也裁掉了这枚药丸。
+- 文档：`settings-general-mascot.png` 与 `settings-role-library.png` 裁掉底部 Star 药丸，只保留卡片内容。
 
 ## [0.4.7] - 2026-11-19
 
