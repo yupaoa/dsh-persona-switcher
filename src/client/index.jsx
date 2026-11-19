@@ -1,9 +1,8 @@
-import { createElement, useEffect } from 'react'
+import { createElement, useEffect, useState } from 'react'
 import {
   Button,
   SettingsForm,
   SettingsFormModel,
-  SettingsValueField,
   Switch,
   settingsTextField
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -52,7 +51,6 @@ import {
  * engine page uses): structure and styles live in this file, colors resolve
  * through the `--dsw-alias-*` theme tokens with local fallbacks, so the page
  * follows light/dark automatically. Only primitives proven in this host
- * (Button/SettingsForm/SettingsValueField/Switch) are used; the tab bar and
  * cards are hand-rolled to avoid depending on newer primitive exports.
  */
 
@@ -210,6 +208,10 @@ class PersonaSwitcherCardController {
     return {
       ...this.form.shell(),
       defaultRole: this.form.field('defaultRole'),
+      // The committed value, read from the scope the same way `exposeTool` is. The
+      // role list below highlights it, and the form field alone cannot answer: its
+      // draft only holds what the person clicked.
+      defaultRoleValue: String(this.scope.getSnapshot?.()?.value?.defaultRole ?? ''),
       // The optional chain has to cover `getSnapshot` itself, not just its
       // result: this runs inside the store's publish (a render path), so a form
       // model without a snapshot would throw while the settings screen paints.
@@ -1194,6 +1196,63 @@ const STYLE_TEXT = `
   color: var(--ps-danger);
 }
 
+/* ── Default-role list: the same rows as the composer's picker, in the page
+   instead of a popup. A card of one-line options beats a free-text id field:
+   nothing to spell, and "no persona" is a visible choice, not an empty box. ── */
+.dsh-panel.ps-page .ps-defaults {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dsh-panel.ps-page .ps-defaults__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ps-border-soft);
+  border-radius: 10px;
+  background: var(--ps-surface);
+  color: var(--ps-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.dsh-panel.ps-page .ps-defaults__option:hover:not(:disabled) {
+  border-color: var(--ps-border);
+  background: var(--ps-hover);
+}
+.dsh-panel.ps-page .ps-defaults__option.is-active {
+  border-color: var(--ps-accent);
+  background: color-mix(in oklab, var(--ps-accent) 12%, transparent);
+}
+.dsh-panel.ps-page .ps-defaults__option:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+.dsh-panel.ps-page .ps-defaults__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.dsh-panel.ps-page .ps-defaults__check {
+  display: inline-block;
+  width: 1em;
+  color: var(--ps-accent);
+}
+.dsh-panel.ps-page .ps-defaults__detail {
+  font-size: 12px;
+  opacity: 0.72;
+  line-height: 1.45;
+}
+.dsh-panel.ps-page .ps-defaults__note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  opacity: 0.72;
+}
+
 /* ── Host chrome we adopt: the form's save footer sits at the card bottom,
    right-aligned; the failed note stays left. ── */
 .dsh-panel.ps-page .ps-form > div > div:last-child {
@@ -1372,6 +1431,21 @@ const PersonaSwitcherSection = (props) => {
   const personaInvalid = editing === null || personaText.trim() === '' || personaText.length > PERSONA_MAX_LENGTH
   /** The build that produced this bundle; injected by `scripts/build-client.mjs`. */
   const pluginVersion = typeof __PS_VERSION__ === 'undefined' ? '' : __PS_VERSION__
+
+  // The choice the list highlights: the click while a draft is open, otherwise the
+  // value the scope reports as committed. Dropping the local pick on a committed
+  // change is what makes Save and Discard both look right without keeping a second
+  // copy of the form's own state.
+  const committedDefault = String(state.defaultRoleValue ?? '')
+  const [pickedDefault, setPickedDefault] = useState(null)
+  useEffect(() => {
+    setPickedDefault(null)
+  }, [committedDefault])
+  const selectedDefault = pickedDefault ?? committedDefault
+  const chooseDefault = (id) => {
+    setPickedDefault(id)
+    props.edit('defaultRole', id)
+  }
 
   const roleLibrary = (
     <section className="ps-card">
@@ -1697,20 +1771,48 @@ const PersonaSwitcherSection = (props) => {
                   labels={formLabels(t)}
                   state={state}
                   onSave={props.save}
-                  onDiscard={props.discard}
+                  onDiscard={() => {
+                    setPickedDefault(null)
+                    props.discard()
+                  }}
                 >
-                  <SettingsValueField
-                    id="persona-switcher-default-role"
-                    label={t('fieldDefaultRole')}
-                    placeholder="whale-girl"
-                    overriddenLabel={t('overridden')}
-                    resetLabel={t('reset')}
-                    invalidLabel={t('invalidRole')}
-                    disabled={!state.writable}
-                    {...state.defaultRole}
-                    onEdit={(text) => props.edit('defaultRole', text)}
-                    onReset={() => props.resetField('defaultRole')}
-                  />
+                  {/* A list, not a text box: the value is a role id, and typing one
+                      meant knowing ids, remembering their spelling and learning about
+                      a typo only after the save came back 400. Every option is one
+                      click, `none` is a real option rather than "empty the box", and
+                      the deployment value shows as neither because it is not a role. */}
+                  <div className="ps-defaults" role="radiogroup" aria-label={t('defaultRole')}>
+                    {[
+                      { id: '', label: t('defaultNone'), detail: t('defaultNoneHint') },
+                      ...roles.map((role) => ({
+                        id: role.id,
+                        label: String(role.name ?? role.id),
+                        detail: `${role.id}${role.description ? ` — ${role.description}` : ''}`
+                      }))
+                    ].map((option) => {
+                      const active = selectedDefault === option.id
+                      return (
+                        <button
+                          key={option.id === '' ? '__none' : option.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          className={`ps-defaults__option${active ? ' is-active' : ''}`}
+                          disabled={!state.writable}
+                          onClick={() => chooseDefault(option.id)}
+                        >
+                          <span className="ps-defaults__name">
+                            <span className="ps-defaults__check" aria-hidden="true">
+                              {active ? '✓' : ''}
+                            </span>
+                            {option.label}
+                          </span>
+                          <small className="ps-defaults__detail">{option.detail}</small>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {!state.writable && <p className="ps-defaults__note">{t('overridden')}</p>}
                 </SettingsForm>
               </div>
             </div>
@@ -1938,8 +2040,9 @@ const zh = {
   tabGeneral: '常规',
   tabLibrary: '角色库',
   defaultRole: '默认角色',
-  defaultRoleHint: '新会话在未指定角色时绑定的人设。留空则使用部署默认值。',
-  fieldDefaultRole: '角色 id',
+  defaultRoleHint: '新会话在未指定角色时绑定的人设。选「不使用人设」则只保留部署人设。',
+  defaultNone: '不使用人设',
+  defaultNoneHint: 'none — 只使用部署人设，不绑定任何角色',
   toolCard: '模型工具',
   exposeTool: '暴露 role_probe 工具',
   exposeToolHint:
@@ -2026,8 +2129,9 @@ const en = {
   tabGeneral: 'General',
   tabLibrary: 'Role library',
   defaultRole: 'Default role',
-  defaultRoleHint: 'Persona bound to new sessions that do not pick a role. Empty keeps the deployment default.',
-  fieldDefaultRole: 'Role id',
+  defaultRoleHint: 'Persona bound to new sessions that do not pick a role. “No persona” keeps the deployment persona only.',
+  defaultNone: 'No persona',
+  defaultNoneHint: 'none — keep the deployment persona, bind no role',
   toolCard: 'Model tooling',
   exposeTool: 'Expose the role_probe tool',
   exposeToolHint:

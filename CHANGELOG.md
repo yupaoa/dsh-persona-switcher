@@ -34,9 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **会话记忆以文件为准，内存只是缓存。** 每次读取（`GET /session`、`restoreRole`、标记）前比对
   文件的 `mtime:size`，有人在外部改过 `sessions.json` 就重新加载，下一次保存也不会再把旧表写回
   去覆盖它。
-- `scripts/verify-blank-default.mjs`：20 条用例覆盖上面每一条规则（含「空会话带旧角色仍跟随当
-  下默认」「说过话的会话不被改写」「`/role none` 不被收回」「标记在开口后消失」），已进
-  `npm test` 与 `prepublishOnly`。
+- **设置页的「默认角色」改成列表选择**，与输入框的「人设」入口同一套行：顶部是「不使用人设」
+  （`none`，只保留部署人设），其余每行一个角色，当前值打勾。此前是自由文本输入框：要记得住角色
+  id、拼写不能错，拼错了要等保存返回 400 才知道；「留空」这种隐性表达也分不清「还没选」和
+  「选错了」。现在一次点击即可，`SettingsValueField` 随之移除。
+- `scripts/verify-blank-default.mjs`：22 条用例覆盖上面每一条规则（含「空会话带旧角色仍跟随当
+  下默认」「有过绑定的空会话也跟随默认」「说过话的会话不被改写」「`/role none` 不被收回」「日志
+  损坏不乱猜」「标记在开口后转成决定」），已进 `npm test` 与 `prepublishOnly`。
 - 设置页版本号改为构建时从 `package.json` 注入（`__PS_VERSION__`），不再手写：此前它一直停在
   上一次构建的版本上，改了 `package.json` 也还是显示旧号。
 
