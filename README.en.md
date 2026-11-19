@@ -68,8 +68,10 @@ To change back to the way it was right now: the same button, choose "No persona"
   never have to leave the input box.
 - 📚 **Role library**: create, edit and delete roles on the settings page, without hunting for
   folders.
-- ⭐ **Default role**: set it once and every new conversation is already that role, with no manual
-  switch each time.
+- ⭐ **Default role**: set it once and every new conversation is already that role — from the moment
+  it exists, before its first message. An empty conversation (nothing said in it) always follows the
+  default in force, and is fixed once it has been talked in. Conversations that already have history,
+  and ones you switched with `/role none`, are left alone.
 - 🧠 **Remembered across restarts**: close DSH completely and open it again, and the conversation
   still knows who it is.
 - 🐳 **Screen mascot**: give a role a piece of artwork and it stands on the interface —
@@ -89,7 +91,12 @@ The upper half (see the screenshot at the top of this page) holds the default ro
 ![The lower half of the General page: the composer persona-picker switch, and the screen mascot (master switch, size, switch animation, position)](docs/images/settings-general-mascot.png)
 
 - **Default role**: who new conversations play by default. Leave it empty for "no default", which
-  follows DSH's own persona. Click save on the right after changing it.
+  follows DSH's own persona. Click save on the right after changing it. "New" means **no conversation
+  content yet**: such an empty conversation — including one created earlier and never used, which
+  still remembers the previous default — follows the default in force, so reopening it after a
+  change shows the new role. Once it has been talked in, the conversation's role is its own and a
+  later default only affects conversations created after that; a `/role none` conversation stays
+  none forever.
 - **Model tool**: the switch for `role_probe`. With it on, the model can look up its own current
   state (see "Diagnostics: `role_probe`" below). If none of that interests you, on or off makes no
   difference to normal use.

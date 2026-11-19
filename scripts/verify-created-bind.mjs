@@ -237,7 +237,10 @@ const scenario = async ({ seed = {}, config = {}, liveAgents = [] } = {}) => {
   const app = fakeHost(liveAgents)
   host.apply(app.ctx, { rolesDir, exposeTool: false, ...config })
   await settle(
-    () => app.infos.some((line) => line.includes('role library')),
+    // The scan line, not the mount line: "mounted; role library resolved to" is
+    // logged at the end of `apply()`, before the asynchronous scan has reported,
+    // so matching it here would let every count below race the first scan.
+    () => app.infos.some((line) => line.includes('role(s)')),
     'the load-time library scan'
   )
   return { dir, rolesDir, stateFile, app }
@@ -384,7 +387,7 @@ await check('the diagnostic tool follows the volatile switch without a restart',
 
 await check('an opted-out session does not rescan the role library every step', async () => {
   const { app } = await scenario({ seed: { 'session-optout': null } })
-  const scans = () => app.infos.filter((line) => line.includes('role library')).length
+  const scans = () => app.infos.filter((line) => line.includes('role(s)')).length
   const before = scans()
   const agent = fakeAgent('session-optout')
   for (const step of [1, 2, 3]) {

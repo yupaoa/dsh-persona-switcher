@@ -1,6 +1,6 @@
 {
   "name": "dsh-persona-switcher",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "Switch the model's persona and speaking style mid-session without touching its tools or skills, and give a role an on-screen mascot. 角色切换：只切换模型的人设与语言风格，不动工具与技能，可为角色绑定屏幕吉祥物立绘。",
   "keywords": [
     "deepseek-harness",
@@ -46,6 +46,7 @@
     "lib/index.js",
     "lib/persona-binding.js",
     "lib/session-state.js",
+    "lib/session-blank.js",
     "lib/atomic-file.js",
     "lib/client.js",
     "locale",
@@ -65,9 +66,9 @@
     "build:client": "node scripts/build-client.mjs",
     "install:desktop": "node scripts/install-desktop.mjs",
     "verify": "node scripts/verify-bundle.mjs",
-    "test": "node scripts/simulate-client.mjs && node scripts/verify-host-binding.mjs && node scripts/verify-session-state.mjs && node scripts/verify-atomic-file.mjs && node scripts/verify-created-bind.mjs && node scripts/verify-role-notice.mjs && node scripts/verify-role-picker.mjs && node scripts/verify-mascot.mjs && node scripts/verify-mascot-client.mjs",
+    "test": "node scripts/simulate-client.mjs && node scripts/verify-host-binding.mjs && node scripts/verify-session-state.mjs && node scripts/verify-atomic-file.mjs && node scripts/verify-created-bind.mjs && node scripts/verify-blank-default.mjs && node scripts/verify-role-notice.mjs && node scripts/verify-role-picker.mjs && node scripts/verify-mascot.mjs && node scripts/verify-mascot-client.mjs",
     "test:browser": "node scripts/verify-composer-browser.mjs",
-    "prepublishOnly": "node scripts/build-client.mjs && node scripts/verify-bundle.mjs && node scripts/verify-host-binding.mjs && node scripts/verify-session-state.mjs && node scripts/verify-created-bind.mjs && node scripts/verify-role-notice.mjs && node scripts/verify-mascot.mjs && node scripts/verify-mascot-client.mjs"
+    "prepublishOnly": "node scripts/build-client.mjs && node scripts/verify-bundle.mjs && node scripts/verify-host-binding.mjs && node scripts/verify-session-state.mjs && node scripts/verify-created-bind.mjs && node scripts/verify-blank-default.mjs && node scripts/verify-role-notice.mjs && node scripts/verify-mascot.mjs && node scripts/verify-mascot-client.mjs"
   },
   "dsh": {
     "bundle": {
