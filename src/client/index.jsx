@@ -2101,22 +2101,24 @@ const PersonaSwitcherSection = (props) => {
         {editor ?? roleLibrary}
       </div>
 
-      <div className="ps-foot">
-        <Button
-          variant="outline"
-          size="sm"
-          icon={<span aria-hidden="true">⭐</span>}
-          onClick={() => window.open(REPO_URL, '_blank', 'noreferrer')}
-        >
-          {t('star')}
-          <img
-            className="ps-foot__avatar"
-            src={STAR_AVATAR}
-            alt=""
-            aria-hidden="true"
-          />
-        </Button>
-      </div>
+      {tab === 'general' && (
+        <div className="ps-foot">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<span aria-hidden="true">⭐</span>}
+            onClick={() => window.open(REPO_URL, '_blank', 'noreferrer')}
+          >
+            {t('star')}
+            <img
+              className="ps-foot__avatar"
+              src={STAR_AVATAR}
+              alt=""
+              aria-hidden="true"
+            />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
